@@ -1,0 +1,6 @@
+# Written by Claude Code each time it loads the mod
+.claude-plugin/types/
+
+# Screenshots for the README: hosted outside the repository
+docs/screenshots/
+.DS_Store

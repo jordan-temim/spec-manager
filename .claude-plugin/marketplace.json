@@ -1,0 +1,6 @@
+{
+  "name": "spec-manager",
+  "description": "spec-manager: a live OpenSpec pane for Claude Code",
+  "owner": { "name": "jordan-temim" },
+  "plugins": [{ "name": "spec-manager", "source": "./" }]
+}

@@ -1,0 +1,82 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin:
+    name: validate and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # Pinned to the version the plugin is developed against
+      - run: npm install --global @anthropic-ai/claude-code@2.1.293
+      - run: claude plugin validate .
+        env:
+          DISABLE_AUTOUPDATER: 1
+      - run: claude plugin test .
+        env:
+          DISABLE_AUTOUPDATER: 1
+
+  version:
+    # `claude plugin update` only picks up a release whose version moved: any
+    # change to the code must come with a higher version in plugin.json
+    name: version bumped with the code
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Compare with the previous state
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No previous commit to compare with"; exit 0
+          fi
+          changed=$(git diff --name-only "$BASE" HEAD -- hooks types .claude-plugin/plugin.json \
+            | grep -vE '\.test\.tsx?$' || true)
+          if [ -z "$changed" ]; then echo "No plugin code changed"; exit 0; fi
+          version() { git show "$1:.claude-plugin/plugin.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])'; }
+          before=$(version "$BASE"); after=$(version HEAD)
+          echo "Changed:"; echo "$changed"; echo "Version: $before -> $after"
+          if [ "$before" = "$after" ]; then
+            echo "::error file=.claude-plugin/plugin.json::The plugin code changed but the version is still $after: bump it, or plugin update will skip this release"
+            exit 1
+          fi
+          highest=$(printf '%s\n%s\n' "$before" "$after" | sort -V | tail -1)
+          if [ "$highest" != "$after" ]; then
+            echo "::error file=.claude-plugin/plugin.json::The version went down ($before -> $after)"
+            exit 1
+          fi
+
+  tag:
+    # A git tag per released version, read from plugin.json
+    name: tag the release
+    if: github.event_name == 'push'
+    needs: [plugin, version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - run: |
+          v=$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "v$v is already tagged"; exit 0
+          fi
+          git tag "v$v"
+          git push origin "v$v"
