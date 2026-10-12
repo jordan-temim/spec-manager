@@ -21,7 +21,7 @@ While you work with Claude on OpenSpec changes, it answers at a glance:
 - **How far along is it?** Task progress per change and per `tasks.md` section.
 - **Which are mine?** In a shared repository, other people's changes are greyed and named after their author.
 
-It only reads your files and runs `openspec` and `git` locally: no network request, no telemetry.
+It only reads your files and runs `openspec` and `git` locally: no network request, no telemetry (see [What it runs, reads and sends](#what-it-runs-reads-and-sends)).
 
 ## Install
 
@@ -155,6 +155,29 @@ claude plugin marketplace remove spec-manager
 - **Desktop clicks:** while the prompt has the focus, the first click on the pane only gives it the focus; the next one presses.
 - **Shared repositories:** the pane reads your working copy, so other people's changes appear once merged and pulled. "Last activity" comes from file modification times, which a `git pull` resets.
 - **Ownership** is decided by the first commit on a change's folder: someone who later takes over a change does not become its owner.
+
+## What it runs, reads and sends
+
+Spec Manager makes **no network request** and sends **nothing** anywhere: no telemetry, no analytics, no remote server. Everything stays on your machine.
+
+**Programs it runs**, in the folder of each OpenSpec module, to read the state of your changes:
+
+| Command | Why |
+| --- | --- |
+| `openspec list --json` | the active changes and their task counts |
+| `openspec status --all --json` | which planning documents each change has |
+| `openspec list --specs --sort name --json` | the main specs, for the SPECS block |
+| `openspec list --archived --json` | the archived changes, for the ARCHIVED block |
+| `git config user.email` | your git identity, to tell your changes from other people's |
+| `git log --reverse --format=%ae%x09%an -- <change folder>` | who made the first commit on a change folder, i.e. its owner |
+
+What `openspec` itself does when it runs is up to the OpenSpec CLI.
+
+**What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs, by their headings only), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit. Nothing of it is stored or sent.
+
+**What it watches in the session:** a `tool.call` hook sees each tool call Claude makes, only to check whether it mentions `openspec` (an edit in an `openspec/` folder, an `openspec` command) and refresh the pane at once. It never changes, blocks, stores or sends a call. A `session.start` hook opens the pane, and the `/spec-manager` command reopens it or picks a module.
+
+**What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
 ## How it works
 

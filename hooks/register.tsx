@@ -126,11 +126,21 @@ async function signature($: EngineInterface, roots: string[]): Promise<string> {
   return parts.join('|')
 }
 
-async function openspec($: EngineInterface, cwd: string, args: string[]): Promise<any> {
-  const { exitCode, stdout, stderr } = await $.process.run(['openspec', ...args, '--json'], { cwd })
-  if (exitCode !== 0) throw new Error(stderr.trim() || `openspec ${args.join(' ')} failed`)
+// Each openspec command is written out in full, so what the pane runs reads from the source
+type Run = { exitCode: number; stdout: string; stderr: string }
+const parsed = async (run: Promise<Run>, command: string): Promise<any> => {
+  const { exitCode, stdout, stderr } = await run
+  if (exitCode !== 0) throw new Error(stderr.trim() || `${command} failed`)
   return JSON.parse(stdout)
 }
+const openspecList = ($: EngineInterface, cwd: string) =>
+  parsed($.process.run(['openspec', 'list', '--json'], { cwd }), 'openspec list')
+const openspecStatus = ($: EngineInterface, cwd: string) =>
+  parsed($.process.run(['openspec', 'status', '--all', '--json'], { cwd }), 'openspec status')
+const openspecSpecs = ($: EngineInterface, cwd: string) =>
+  parsed($.process.run(['openspec', 'list', '--specs', '--sort', 'name', '--json'], { cwd }), 'openspec list --specs')
+const openspecArchived = ($: EngineInterface, cwd: string) =>
+  parsed($.process.run(['openspec', 'list', '--archived', '--json'], { cwd }), 'openspec list --archived')
 
 const USER_ACTION = /^\*\((?:action utilisateur|user action)[^)]*\)\*\s*/i
 
@@ -266,10 +276,10 @@ async function ownership($: EngineInterface, cwd: string, dir: string) {
 // `full` false: just enough to know each change's turn, for a module seen in the overview
 async function loadRoot($: EngineInterface, path: string, full = true): Promise<Root> {
   const [list, status, specs, archived] = await Promise.all([
-    openspec($, path, ['list']),
-    openspec($, path, ['status', '--all']).catch(() => ({ changes: [] })),
-    full ? openspec($, path, ['list', '--specs', '--sort', 'name']).catch(() => ({ specs: [] })) : { specs: [] },
-    full ? openspec($, path, ['list', '--archived']).catch(() => ({ changes: [] })) : { changes: [] },
+    openspecList($, path),
+    openspecStatus($, path).catch(() => ({ changes: [] })),
+    full ? openspecSpecs($, path).catch(() => ({ specs: [] })) : { specs: [] },
+    full ? openspecArchived($, path).catch(() => ({ changes: [] })) : { changes: [] },
   ])
   const artifactsOf = new Map<string, Artifact[]>()
   const specPathsOf = new Map<string, string[]>()
