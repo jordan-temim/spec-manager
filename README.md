@@ -173,9 +173,9 @@ Spec Manager makes **no network request** and sends **nothing** anywhere: no tel
 
 What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
-**What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs, by their headings only), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit. Nothing of it is stored or sent.
+**What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs, by their headings only), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 
-**What it watches in the session:** a `tool.call` hook sees each tool call Claude makes, only to check whether it mentions `openspec` (an edit in an `openspec/` folder, an `openspec` command) and refresh the pane at once. It never changes, blocks, stores or sends a call. A `session.start` hook opens the pane, and the `/spec-manager` command reopens it or picks a module.
+**What it watches in the session:** a `tool.call` hook sees each tool call Claude makes, only to check whether it mentions `openspec` (an edit in an `openspec/` folder, an `openspec` command) and refresh the pane at once; it does not change, block, store or send a call. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
 
 **What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
