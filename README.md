@@ -179,6 +179,8 @@ What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
 **What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
+The same, as a privacy policy: [Privacy](PRIVACY.md).
+
 ## How it works
 
 - Finds the modules once a minute; every 5 seconds it fingerprints their `openspec/` folders (names and modification times) and only runs `openspec` and `git` when something changed. Any tool call mentioning `openspec` refreshes at once.
