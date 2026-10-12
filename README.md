@@ -201,3 +201,5 @@ A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pu
 ## License
 
 [MIT](LICENSE)
+
+Spec Manager is an independent project, not affiliated with or endorsed by the [OpenSpec](https://github.com/Fission-AI/OpenSpec) project or Anthropic. It only reads OpenSpec's file format and runs the `openspec` command you installed; it bundles none of OpenSpec's code.
