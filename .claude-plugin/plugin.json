@@ -2,7 +2,7 @@
   "name": "spec-manager",
   "displayName": "Spec Manager",
   "icon": "./assets/icon.png",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A live pane showing OpenSpec changes, whose turn it is, task progress and specs",
   "author": {
     "name": "jordan-temim",
@@ -10,6 +10,7 @@
   },
   "homepage": "https://github.com/jordan-temim/spec-manager#readme",
   "repository": "https://github.com/jordan-temim/spec-manager",
+  "supportUrl": "https://github.com/jordan-temim/spec-manager/issues",
   "license": "MIT",
   "keywords": [
     "openspec",
