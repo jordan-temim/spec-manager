@@ -171,7 +171,7 @@ claude plugin validate .
 claude plugin test .
 ```
 
-A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pull request, fails when the plugin code changes without a higher `version` in `plugin.json` (`claude plugin update` would skip such a release), and tags each released version (`v0.1.0`, …).
+A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pull request, fails when the plugin code changes without a higher `version` in `plugin.json` (`claude plugin update` would skip such a release), tags each released version (`v0.1.0`, …) and publishes a GitHub release for it, titled and described by the release commit.
 
 `hooks/register.tsx` is the whole mod; `types/index.d.ts` declares the state it keeps. `hooks/register.test.ts` covers the parsing and the rules (whose turn, ownership, module lookup); `hooks/overview.test.tsx` draws the pane on the terminal and the desktop against a fake two-module repository and clicks through it.
 

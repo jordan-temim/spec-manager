@@ -61,8 +61,9 @@ jobs:
           fi
 
   tag:
-    # A git tag per released version, read from plugin.json
-    name: tag the release
+    # A git tag and a GitHub release per released version, read from plugin.json;
+    # the release takes the title and body of the commit the tag points to
+    name: tag and release
     if: github.event_name == 'push'
     needs: [plugin, version]
     runs-on: ubuntu-latest
@@ -73,10 +74,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - run: |
+      - name: Tag the version
+        run: |
           v=$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
+          echo "V=$v" >> "$GITHUB_ENV"
           if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
             echo "v$v is already tagged"; exit 0
           fi
           git tag "v$v"
           git push origin "v$v"
+      - name: Release the version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "v$V is already released"; exit 0
+          fi
+          git log -1 --format=%b "v$V" > notes.md
+          gh release create "v$V" --verify-tag --title "$(git log -1 --format=%s "v$V")" --notes-file notes.md
