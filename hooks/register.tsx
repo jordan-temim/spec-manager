@@ -23,6 +23,9 @@ let isPending = false
 // Latest root read per module (full or light): a module opens at once from here
 const cache = new Map<string, Root>()
 let found: { base: string; inside?: string; paths: string[]; at: number } | undefined
+// The pane opens by itself once there is an OpenSpec module to show, and only once:
+// a project without openspec/ gets no pane until /spec-manager or `openspec init`
+let hasOpened = false
 
 const parentOf = (dir: string) => dir.slice(0, dir.lastIndexOf('/'))
 
@@ -359,6 +362,10 @@ async function refresh($: EngineInterface, force = false, rediscover = false) {
     if (rediscover || !found || now - found.at > DISCOVER_EVERY_MS) {
       const isFirst = !found
       found = { ...(await discover($)), at: now }
+      if (!hasOpened && found.paths.length > 0) {
+        hasOpened = true
+        void $.ui.open({ id: PANE, title: TITLE })
+      }
       if (isFirst || (await read($, view)).selected === undefined) {
         const selected = await initialSelection($, found.base, found.inside, found.paths)
         await update($, view, old => ({ ...old, selected }))
@@ -556,7 +563,6 @@ let ticks = 0
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'spec-manager', description: 'Show the Spec Manager pane (OpenSpec changes)' })
-    void $.ui.open({ id: PANE, title: TITLE })
     void refresh($, true)
     $.clock.every(POLL_MS, () => {
       void refresh($)
@@ -573,6 +579,7 @@ export const register: Register = on => {
   // /spec-manager <module>   shows that module (its folder name or the end of its path)
   // /spec-manager all        shows every module
   on('command.run', { command: 'spec-manager' }, async ($, e) => {
+    hasOpened = true
     await $.ui.open({ id: PANE, title: TITLE })
     if (e.args.trim() === '') {
       // Start over: look for the modules again and pick what to show as at session start

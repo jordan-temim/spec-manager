@@ -32,7 +32,7 @@ claude plugin install spec-manager@spec-manager --scope user
 
 or, inside a terminal Claude Code session, `/plugin install spec-manager --marketplace jordan-temim/spec-manager`. A plugin installed at user scope also loads in the desktop Code tab.
 
-Then start a new session in a project that has an `openspec/` folder: the pane opens by itself, and `/spec-manager` reopens it. It needs Claude Code 2.1.293 or later and the `openspec` CLI (see [Requirements](#requirements)).
+Then start a new session in a project that has an `openspec/` folder: the pane opens by itself (elsewhere it stays closed until an `openspec/` folder appears), and `/spec-manager` reopens it. It needs Claude Code 2.1.293 or later and the `openspec` CLI (see [Requirements](#requirements)).
 
 ## What it looks like
 
