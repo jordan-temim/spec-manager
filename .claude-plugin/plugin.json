@@ -1,7 +1,21 @@
 {
   "name": "spec-manager",
-  "version": "0.2.0",
-  "description": "A live pane showing OpenSpec changes, task progress and specs",
-  "author": { "name": "jordan-temim" },
+  "displayName": "Spec Manager",
+  "version": "0.2.1",
+  "description": "A live pane showing OpenSpec changes, whose turn it is, task progress and specs",
+  "author": {
+    "name": "jordan-temim",
+    "url": "https://github.com/jordan-temim"
+  },
+  "homepage": "https://github.com/jordan-temim/spec-manager#readme",
+  "repository": "https://github.com/jordan-temim/spec-manager",
+  "license": "MIT",
+  "keywords": [
+    "openspec",
+    "specs",
+    "spec-driven",
+    "workflow",
+    "pane"
+  ],
   "types": "./types/index.d.ts"
 }
