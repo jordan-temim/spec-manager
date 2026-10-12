@@ -77,7 +77,7 @@ A task is a **user action** when its text starts with `*(user action …)*` (or 
 
 ## Several modules in one repository
 
-A module is any folder holding an `openspec/`, up to 3 levels below the repository top (the nearest `.git` upward), skipping hidden folders, `node_modules`, `dist`, `build`, `target` and `vendor`.
+A module is any folder holding an `openspec/`, up to 5 levels below the repository top (the nearest `.git` upward), skipping hidden folders, `node_modules`, `dist`, `build`, `target` and `vendor`.
 
 - **Session opened inside a module:** the pane shows that module, with `‹ All modules` to go up.
 - **Session opened at the top:** the overview above, one card per module with a line per active change (its name, the stepper as six dots lined up in a column, then its tag or its author). Yours first, the ones waiting on you on top. `Open ›` opens a module.
