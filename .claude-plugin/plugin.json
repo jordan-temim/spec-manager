@@ -2,7 +2,7 @@
   "name": "spec-manager",
   "displayName": "Spec Manager",
   "icon": "./assets/icon.png",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "A live pane showing OpenSpec changes, whose turn it is, task progress and specs",
   "author": {
     "name": "jordan-temim",

@@ -211,10 +211,11 @@ export function whyLine(proposal: string): string | undefined {
 }
 
 // Decision titles (`### D1. Title`) and the bullets under `## Open Questions` of design.md
-export function parseDesign(design: string): { decisions: string[]; openQuestions: number } {
+export function parseDesign(design: string): { decisions: string[]; openQuestions: string[] } {
   const decisions = [...design.matchAll(/^### (D\d+)\.\s+(.+)$/gm)].map(m => `${m[1]} ${m[2].replace(/[`*]/g, '').trim()}`)
-  const questions = design.split(/^## Open Questions\s*$/m)[1]?.split(/^## /m)[0] ?? ''
-  return { decisions, openQuestions: (questions.match(/^\s*(?:[-*]|\d+\.)\s+/gm) ?? []).length }
+  const section = design.split(/^## Open Questions\s*$/m)[1]?.split(/^## /m)[0] ?? ''
+  const openQuestions = [...section.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.+)$/gm)].map(m => m[1].replace(/[`*]/g, '').trim())
+  return { decisions, openQuestions }
 }
 
 export function specCounts(spec: string): { requirements: number; scenarios: number } {
@@ -301,7 +302,7 @@ async function loadRoot($: EngineInterface, path: string, full = true): Promise<
         $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
         full
           ? loadDigest($, changeRoot, specPathsOf.get(one.name) ?? [])
-          : { specs: [], decisions: [], openQuestions: 0 },
+          : { specs: [], decisions: [], openQuestions: [] },
         ownership($, path, changeRoot),
       ])
       const { sections, open } = parseTasks(markdown)
@@ -827,7 +828,24 @@ export const register: Register = on => {
                 ))}
               </Box>,
             )}
-          {openQuestions > 0 && field('⚠ Open Q.', <Text color={SAGE}>{openQuestions} to settle</Text>, SAGE)}
+          {/* The questions themselves, in your colour: they wait on you before /opsx:apply */}
+          {openQuestions.length > 0 && (
+            <Box flexDirection="column" paddingLeft={2}>
+              <Text bold color={SAGE}>
+                ⚠ {openQuestions.length} open question{openQuestions.length === 1 ? '' : 's'} to settle
+              </Text>
+              {openQuestions.map(q => (
+                <Box flexDirection="row" paddingLeft={2}>
+                  <Box flexShrink={0}>
+                    <Text color={SAGE}>? </Text>
+                  </Box>
+                  <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                    <Text>{q}</Text>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
           {field(
             'Tasks',
             <Text>

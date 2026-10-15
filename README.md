@@ -61,7 +61,7 @@ Screenshots from a demo repository (a gym management app); the conversation, the
 | Phase | When | Tag | Below the stepper |
 | --- | --- | --- | --- |
 | Planning | a planning document is missing | `AI` | the document to write next |
-| Plan to review | every planning document written, no task checked | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, open questions, task count |
+| Plan to review | every planning document written, no task checked | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count |
 | Implementing | at least one task checked | `YOU` if the next task is a user action, else `AI` | progress per section, your next user-action task, the AI's next task |
 | Ready to archive | every task checked | `YOU` | the specs archiving will merge |
 
@@ -173,7 +173,7 @@ Spec Manager makes **no network request** and sends **nothing** anywhere: no tel
 
 What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
-**What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs, by their headings only), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
+**What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 
 **What it watches in the session:** a `tool.call` hook sees each tool call Claude makes, only to check whether it mentions `openspec` (an edit in an `openspec/` folder, an `openspec` command) and refresh the pane at once; it does not change, block, store or send a call. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
 
@@ -185,7 +185,7 @@ The same, as a privacy policy: [Privacy](PRIVACY.md).
 
 - Finds the modules once a minute; every 5 seconds it fingerprints their `openspec/` folders (names and modification times) and only runs `openspec` and `git` when something changed. Any tool call mentioning `openspec` refreshes at once.
 - The selected module is read in full (`openspec list`, `status`, `list --specs`, `list --archived`); the others light (`list`, `status`), enough for their cards.
-- Reads `tasks.md`, `proposal.md`, `design.md` and the change's specs by their headings only (`## 1. Section`, `- [ ]`, `### D1.`, `### Requirement:`, `#### Scenario:`, `## Open Questions`).
+- Reads `tasks.md`, `proposal.md`, `design.md` and the change's specs by their structure: headings (`## 1. Section`, `### D1.`, `### Requirement:`, `#### Scenario:`), task lines (`- [ ]`), the first sentence under `## Why`, and the bullets under `## Open Questions`.
 - Ownership: `git log --reverse --format=%ae%x09%an -- <change folder>`, first line, against `git config user.email`.
 - Bars, steppers and dots are SVG on the desktop (exact pixel widths, a light band animated on the current step); the terminal gets a text fallback.
 

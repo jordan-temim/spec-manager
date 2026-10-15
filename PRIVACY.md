@@ -4,7 +4,7 @@ Spec Manager runs on your machine. The plugin itself makes no network request an
 
 ## What it reads
 
-- The files under each `openspec/` folder of the project you open in Claude Code: `tasks.md`, `proposal.md`, `design.md` and the change's specs, by their headings only, plus folder names and modification times.
+- The files under each `openspec/` folder of the project you open in Claude Code: `tasks.md`, `proposal.md`, `design.md` and the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md, plus folder names and modification times.
 - Through `git log`, the **name and email** of the author of each OpenSpec change folder's first commit, and through `git config user.email`, **your own git email**, in order to tell your changes from other people's and show the author's name in its pane. The plugin itself does not send them anywhere and does not write them into the conversation.
 - The tool calls Claude makes in the session: it looks at them only to check whether one mentions `openspec`, and refreshes the pane; it does not change, block, store or send them.
 

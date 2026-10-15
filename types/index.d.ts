@@ -18,7 +18,8 @@ export type Digest = {
   why?: string
   specs: ChangeSpec[]
   decisions: string[]
-  openQuestions: number
+  /** The bullets under `## Open Questions` in design.md */
+  openQuestions: string[]
 }
 
 export type Change = {
