@@ -191,6 +191,8 @@ The same, as a privacy policy: [Privacy](PRIVACY.md).
 
 ## Development
 
+Versions follow semantic versioning: the last number for fixes (0.3.1), the middle one for new features (0.4.0).
+
 ```bash
 claude plugin validate .
 claude plugin test .
