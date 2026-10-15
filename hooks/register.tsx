@@ -5,7 +5,7 @@ import type { Artifact, Change, Module, Progress, Root, Section, Task, View } fr
 
 const PANE = 'spec-manager'
 const TITLE = 'Spec Manager'
-const POLL_MS = 5000
+const POLL_MS = 10000
 const ARCHIVED_SHOWN = 3
 const ALL = 'all'
 const SCAN_DEPTH = 5
@@ -374,7 +374,11 @@ async function refresh($: EngineInterface, force = false, rediscover = false) {
     }
     const { base, paths } = found
     const sig = await signature($, paths)
-    if (!force && sig === lastSignature) return
+    if (!force && sig === lastSignature) {
+      // Nothing moved: say when it was last checked
+      await update($, view, old => ({ ...old, updatedAt: now, now }))
+      return
+    }
     lastSignature = sig
     const selected = settle((await read($, view)).selected, paths)
     // Every module is read light for the overview; the selected one in full
@@ -453,6 +457,12 @@ const barSvg = ({ done, total }: Progress) => {
 const clock = (ms: number) => {
   const d = new Date(ms)
   return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':')
+}
+
+// "updated at 20:35:37 · refresh in 2s"
+const footer = (updatedAt: number, now: number | undefined) => {
+  const left = now === undefined ? undefined : Math.max(0, Math.ceil((nextPollAt - now) / 1000))
+  return `updated at ${clock(updatedAt)}${left === undefined ? '' : ` · refresh in ${left}s`}`
 }
 
 const ago = (iso: string, now: number) => {
@@ -558,19 +568,25 @@ const PHASE_LABEL = {
   implementing: 'Implementing',
   ready: 'Ready to archive',
 } as const
-const MINUTE_TICKS = 60000 / POLL_MS
-let ticks = 0
+// When the next look at the files is due, for the countdown in the footer
+let nextPollAt = 0
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'spec-manager', description: 'Show the Spec Manager pane (OpenSpec changes)' })
     void refresh($, true)
+    nextPollAt = (await $.clock.now()) + POLL_MS
+    // The pane reads files only: it looks again every 10 seconds (and searches for new
+    // modules at once while it has none, so an `openspec init` shows up quickly)
     $.clock.every(POLL_MS, () => {
-      void refresh($)
-      // Once a minute, move the clock the "last activity" times are read against
-      if (++ticks % MINUTE_TICKS === 0) {
-        void $.clock.now().then(now => update($, view, old => ({ ...old, now })))
-      }
+      void refresh($, false, found?.paths.length === 0)
+      void $.clock.now().then(now => {
+        nextPollAt = now + POLL_MS
+      })
+    })
+    // Every second, move the clock the countdown and the "last activity" times read
+    $.clock.every(1000, () => {
+      void $.clock.now().then(now => update($, view, old => ({ ...old, now })))
     })
 
     return next(e)
@@ -596,19 +612,6 @@ export const register: Register = on => {
     }
     await select($, target)
     return { text: target === ALL ? 'Showing every OpenSpec module.' : `Showing ${moduleName(found.base, target)}.` }
-  })
-
-  // Anything touching openspec (an edit in openspec/, an openspec command) refreshes at once
-  on('tool.call', async ($, e, next) => {
-    const result = await next(e)
-    try {
-      // With no module yet, look again at once: this may be `openspec init`
-      if (JSON.stringify(e).includes('openspec')) void refresh($, true, found?.paths.length === 0).catch(() => {})
-    } catch {
-      // Never let the pane get in the way of a tool call
-    }
-
-    return result
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -1037,7 +1040,7 @@ export const register: Register = on => {
               {idle.map(row)}
             </>,
           )}
-          <Text dimColor>{'/spec-manager <module> also opens one'} · updated {clock(updatedAt)}</Text>
+          <Text dimColor>{'/spec-manager <module> also opens one'} · {footer(updatedAt, now)}</Text>
         </Box>
       )
     }
@@ -1118,7 +1121,7 @@ export const register: Register = on => {
           </>,
         )}
 
-        <Text dimColor>updated {clock(updatedAt)}</Text>
+        <Text dimColor>{footer(updatedAt, now)}</Text>
       </Box>
     )
   })

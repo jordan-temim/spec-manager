@@ -175,7 +175,7 @@ What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
 **What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 
-**What it watches in the session:** a `tool.call` hook sees each tool call Claude makes, only to check whether it mentions `openspec` (an edit in an `openspec/` folder, an `openspec` command) and refresh the pane at once; it does not change, block, store or send a call. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
+**What it watches in the session:** nothing from the conversation. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
 
 **What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
@@ -183,7 +183,7 @@ The same, as a privacy policy: [Privacy](PRIVACY.md).
 
 ## How it works
 
-- Finds the modules once a minute; every 5 seconds it fingerprints their `openspec/` folders (names and modification times) and only runs `openspec` and `git` when something changed. Any tool call mentioning `openspec` refreshes at once.
+- Finds the modules once a minute (every 10 seconds while it has found none); every 10 seconds it fingerprints their `openspec/` folders (names and modification times) and only runs `openspec` and `git` when something changed. The footer says when it last looked and counts down to the next look.
 - The selected module is read in full (`openspec list`, `status`, `list --specs`, `list --archived`); the others light (`list`, `status`), enough for their cards.
 - Reads `tasks.md`, `proposal.md`, `design.md` and the change's specs by their structure: headings (`## 1. Section`, `### D1.`, `### Requirement:`, `#### Scenario:`), task lines (`- [ ]`), the first sentence under `## Why`, and the bullets under `## Open Questions`.
 - Ownership: `git log --reverse --format=%ae%x09%an -- <change folder>`, first line, against `git config user.email`.
