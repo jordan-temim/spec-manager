@@ -175,7 +175,7 @@ What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
 **What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 
-**What it watches in the session:** nothing from the conversation. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
+**What it watches in the session:** nothing from the conversation. Two checks keep it so on every push: `.github/privacy-check.py` fails if the plugin hooks or calls anything beyond its list (no prompts, answers, tool calls, model or network), and `hooks/privacy.test.tsx` runs a whole session and fails if the plugin reads a file other than an OpenSpec document or runs anything but read-only `openspec` and `git`. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
 
 **What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
