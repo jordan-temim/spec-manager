@@ -176,6 +176,22 @@ export function parseTasks(markdown: string): { sections: Section[]; open: Task[
 }
 
 // Phase and whose move it is, inferred from artifacts and checkboxes
+// A change's planning documents from `openspec status`: its own verdict per document
+// when it gives one (a document a change skips, as with `skip_specs: true`, is
+// "skipped" and counts as done), else whether the document's files exist
+export function artifactsFrom(one: any): Artifact[] {
+  const verdict = new Map<string, string>(
+    (Array.isArray(one.artifacts) ? one.artifacts : []).map((a: any) => [a.id, a.status]),
+  )
+  const paths = Object.entries(one.artifactPaths ?? {}) as [string, { existingOutputPaths?: string[] }][]
+  return paths.map(([name, p]) => {
+    const status = verdict.get(name)
+    if (status === 'skipped') return { name, isDone: true, isSkipped: true }
+    if (status === 'done') return { name, isDone: true }
+    return { name, isDone: (p.existingOutputPaths ?? []).length > 0 }
+  })
+}
+
 export function whoseTurn(
   artifacts: Artifact[],
   tasks: Progress,
@@ -288,11 +304,7 @@ async function loadRoot($: EngineInterface, path: string, full = true): Promise<
   const artifactsOf = new Map<string, Artifact[]>()
   const specPathsOf = new Map<string, string[]>()
   for (const one of status.changes ?? []) {
-    const paths = Object.entries(one.artifactPaths ?? {}) as [string, { existingOutputPaths?: string[] }][]
-    artifactsOf.set(
-      one.changeName,
-      paths.map(([name, p]) => ({ name, isDone: (p.existingOutputPaths ?? []).length > 0 })),
-    )
+    artifactsOf.set(one.changeName, artifactsFrom(one))
     specPathsOf.set(one.changeName, one.artifactPaths?.specs?.existingOutputPaths ?? [])
   }
   const changes: Change[] = await Promise.all(
@@ -481,14 +493,18 @@ const RULE_SVG =
 type StepState = 'done' | 'current' | 'todo'
 
 // The whole cycle in OpenSpec's own words: the four documents, then apply and archive
-export function steps(change: Change): { name: string; state: StepState }[] {
-  const raw = [
-    ...change.artifacts.map(a => ({ name: a.name, isDone: a.isDone })),
+export function steps(change: Change): { name: string; state: StepState; isSkipped?: boolean }[] {
+  const raw: { name: string; isDone: boolean; isSkipped?: boolean }[] = [
+    ...change.artifacts.map(a => ({ name: a.name, isDone: a.isDone, isSkipped: a.isSkipped })),
     { name: 'apply', isDone: change.phase === 'ready' },
     { name: 'archive', isDone: false },
   ]
   const current = raw.findIndex(s => !s.isDone)
-  return raw.map((s, i) => ({ name: s.name, state: s.isDone ? 'done' : i === current ? 'current' : 'todo' }))
+  return raw.map((s, i) => ({
+    name: s.name,
+    state: s.isDone ? 'done' : i === current ? 'current' : 'todo',
+    ...(s.isSkipped ? { isSkipped: true } : {}),
+  }))
 }
 
 const TAB_W = 70
@@ -510,7 +526,7 @@ const SHINE_S = 6
 // band sweeping left to right (CSS, off under reduced motion), drawn under the label
 const stepperWidth = (count: number) => count * (TAB_W + 2) + TAB_TIP
 
-const stepperSvg = (list: { name: string; state: StepState }[], currentFill: string) => {
+const stepperSvg = (list: { name: string; state: StepState; isSkipped?: boolean }[], currentFill: string) => {
   const width = stepperWidth(list.length)
   let shine = ''
   const tabs = list.map((step, i) => {
@@ -530,7 +546,8 @@ const stepperSvg = (list: { name: string; state: StepState }[], currentFill: str
       notch,
     ]
     const outline = step.state === 'todo' ? ` stroke="${TODO_STROKE}" stroke-width="1"` : ''
-    const label = `${step.state === 'done' ? '✓ ' : ''}${step.name}`
+    // A skipped document reads "– specs": passed, without a file
+    const label = `${step.state === 'done' ? (step.isSkipped ? '– ' : '✓ ') : ''}${step.name}`
     if (step.state === 'current') {
       const from = x - SHINE_W
       const to = x + TAB_W + TAB_TIP
@@ -724,7 +741,7 @@ export const register: Register = on => {
               {list.map((s, i) => (
                 <Text bold={s.state === 'current'} color={s.state === 'current' ? actorColor(change) : undefined} dimColor={s.state === 'todo'}>
                   {i > 0 ? ' › ' : ''}
-                  {s.state === 'done' ? '✓' : s.state === 'current' ? '◐' : '○'} {s.name}
+                  {s.state === 'done' ? (s.isSkipped ? '–' : '✓') : s.state === 'current' ? '◐' : '○'} {s.name}
                 </Text>
               ))}
             </Text>

@@ -1,6 +1,7 @@
 export type Progress = { done: number; total: number }
 
-export type Artifact = { name: string; isDone: boolean }
+/** A planning document; a skipped one (`skip_specs: true`) counts as done */
+export type Artifact = { name: string; isDone: boolean; isSkipped?: boolean }
 
 /** A `## N. Title` section of tasks.md with its checkbox count */
 export type Section = { num: string; title: string } & Progress

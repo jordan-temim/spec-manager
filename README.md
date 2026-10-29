@@ -71,6 +71,8 @@ A plan to review sums up the change in a few lines before any code is written:
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-review.png" alt="A plan to review in the desktop pane: why, specs, decisions, two open questions, task count" /></p>
 
+A planning document a change skips (`skip_specs: true` in its `.openspec.yaml`, for a change that modifies no spec) counts as written and reads `– specs` in the stepper.
+
 A task is a **user action** when its text starts with `*(user action …)*` (or `*(action utilisateur …)*`); it is listed under `● Waiting on you`.
 
 The tag is inferred from the files alone. OpenSpec does not record reviews: a checked box means the task was checked, not that someone reviewed it. `/opsx:explore` writes no file, so exploring shows nothing until a change exists.

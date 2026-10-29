@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, steps, whoseTurn, whyLine } from './register'
+import { artifactsFrom, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, steps, whoseTurn, whyLine } from './register'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -154,5 +154,34 @@ describe('selection', () => {
     expect(settle('/repo/b', paths)).toBe('/repo/b')
     expect(settle('all', paths)).toBe('all')
     expect(settle('/gone', paths)).toBe('all')
+  })
+})
+
+describe('skipped documents', () => {
+  // openspec status for a change with skip_specs: true in its .openspec.yaml
+  const status = {
+    artifactPaths: {
+      proposal: { existingOutputPaths: ['proposal.md'] },
+      specs: { existingOutputPaths: [] },
+      design: { existingOutputPaths: ['design.md'] },
+      tasks: { existingOutputPaths: ['tasks.md'] },
+    },
+    artifacts: [
+      { id: 'proposal', status: 'done' },
+      { id: 'specs', status: 'skipped' },
+      { id: 'design', status: 'done' },
+      { id: 'tasks', status: 'done' },
+    ],
+  }
+
+  test('a skipped document counts as done, so the plan is complete', async () => {
+    const artifacts = artifactsFrom(status)
+    expect(artifacts.find(a => a.name === 'specs')).toEqual({ name: 'specs', isDone: true, isSkipped: true })
+    expect(whoseTurn(artifacts, { done: 0, total: 14 }, []).phase).toBe('review')
+  })
+
+  test('without a verdict from openspec, a document is done when its files exist', async () => {
+    const { artifacts: _, ...older } = status
+    expect(artifactsFrom(older).find(a => a.name === 'specs')?.isDone).toBe(false)
   })
 })
