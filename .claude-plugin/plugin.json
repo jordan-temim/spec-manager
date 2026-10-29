@@ -2,8 +2,8 @@
   "name": "spec-manager",
   "displayName": "Spec Manager",
   "icon": "./assets/icon.png",
-  "version": "0.4.1",
-  "description": "A live pane showing OpenSpec changes, whose turn it is, task progress and specs",
+  "version": "0.4.2",
+  "description": "A live pane showing OpenSpec changes, who does the next step, task progress and specs",
   "author": {
     "name": "jordan-temim",
     "url": "https://github.com/jordan-temim"

@@ -638,6 +638,12 @@ export const register: Register = on => {
         )}
       </Box>
     )
+    // What the two tags mean: the kind of the next step, not who is acting right now
+    const legend = (
+      <Text dimColor>
+        <Text bold color={CLAY}>AI</Text> builds · <Text bold color={SAGE}>YOU</Text> act
+      </Text>
+    )
     const { roots, modules, selected, error, updatedAt, now } = await read($, view)
 
     if (error) {
@@ -1040,6 +1046,7 @@ export const register: Register = on => {
               {idle.map(row)}
             </>,
           )}
+          {legend}
           <Text dimColor>{'/spec-manager <module> also opens one'} · {footer(updatedAt, now)}</Text>
         </Box>
       )
@@ -1121,6 +1128,7 @@ export const register: Register = on => {
           </>,
         )}
 
+        {legend}
         <Text dimColor>{footer(updatedAt, now)}</Text>
       </Box>
     )

@@ -122,3 +122,12 @@ test('on the terminal, the rule between changes fits the frame', async ($, on) =
   expect(rule).toBeDefined()
   expect(JSON.stringify(rule).match(/─+/)![0].length).toBeLessThanOrEqual(props.bodyColumns - 4)
 })
+
+test('the pane says what the two tags mean, on both surfaces', async ($, on) => {
+  fakeRepo(on)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    await runCommand($, 'paiement')
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
+    expect(await ui.find({ type: 'Text', text: /AI builds · YOU act/ })).toBeDefined()
+  }
+})

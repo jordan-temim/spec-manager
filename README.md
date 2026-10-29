@@ -17,7 +17,7 @@
 While you work with Claude on OpenSpec changes, it answers at a glance:
 
 - **Where is each change in its cycle?** A stepper over OpenSpec's own steps: `proposal › specs › design › tasks › apply › archive`.
-- **Whose turn is it?** A `YOU` or `AI` tag on each of your changes, and how many of each at the top (`2 [YOU]  1 [AI]`).
+- **Who does the next step?** An `AI` or `YOU` tag on each of your changes, and how many of each at the top (`2 [YOU]  1 [AI]`): `AI` when the AI builds something (writes the plan, codes the tasks), `YOU` when a user action is needed (review the plan, do a user-action task, check before archiving).
 - **How far along is it?** Task progress per change and per `tasks.md` section.
 - **Which are mine?** In a shared repository, other people's changes are greyed and named after their author.
 
@@ -56,9 +56,11 @@ The same two views, drawn in text and docked to the right of the conversation (f
 
 Screenshots from a demo repository (a gym management app); the conversation, the sidebar and the project path are blurred.
 
-## Phases and whose turn it is
+## Phases and who does the next step
 
-| Phase | When | Tag | Below the stepper |
+`AI` builds, `YOU` act: the tag tells what the next step is, not what is happening right now. When the AI stops to ask you something in the conversation, the files do not change and the tag stays `AI`; the pane reads the files only.
+
+| Phase | When | Next step by | Below the stepper |
 | --- | --- | --- | --- |
 | Planning | a planning document is missing | `AI` | the document to write next |
 | Plan to review | every planning document written, no task checked | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count |
@@ -71,7 +73,7 @@ A plan to review sums up the change in a few lines before any code is written:
 
 A task is a **user action** when its text starts with `*(user action …)*` (or `*(action utilisateur …)*`); it is listed under `● Waiting on you`.
 
-"Whose turn" is inferred from the files alone. OpenSpec does not record reviews: a checked box means the task was checked, not that someone reviewed it. `/opsx:explore` writes no file, so exploring shows nothing until a change exists.
+The tag is inferred from the files alone. OpenSpec does not record reviews: a checked box means the task was checked, not that someone reviewed it. `/opsx:explore` writes no file, so exploring shows nothing until a change exists.
 
 `SPECS` lists the main specs (`openspec/specs/`) with their requirement count; `ARCHIVED` the three most recent archived changes.
 
@@ -200,7 +202,7 @@ claude plugin test .
 
 A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pull request, fails when the plugin code changes without a higher `version` in `plugin.json` (`claude plugin update` would skip such a release), tags each released version (`v0.1.0`, …) and publishes a GitHub release for it, titled and described by the release commit.
 
-`hooks/register.tsx` is the whole mod; `types/index.d.ts` declares the state it keeps. `hooks/register.test.ts` covers the parsing and the rules (whose turn, ownership, module lookup); `hooks/overview.test.tsx` draws the pane on the terminal and the desktop against a fake two-module repository and clicks through it.
+`hooks/register.tsx` is the whole mod; `types/index.d.ts` declares the state it keeps. `hooks/register.test.ts` covers the parsing and the rules (who does the next step, ownership, module lookup); `hooks/overview.test.tsx` draws the pane on the terminal and the desktop against a fake two-module repository and clicks through it.
 
 ## License
 
