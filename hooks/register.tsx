@@ -925,10 +925,10 @@ export const register: Register = on => {
       </Box>
     )
 
-    // Each block sits in its own thin rounded frame, its heading at the top. A fixed
+    // Each block sits in its own thin square-cornered frame, its heading at the top. A fixed
     // mid grey: the theme's dimmed border all but vanished on the dark theme
     const frame = (content: any) => (
-      <Box flexDirection="column" borderStyle="round" borderColor={MUTED} paddingX={1} paddingY={air(1)} marginBottom={1} overflow="hidden">
+      <Box flexDirection="column" borderStyle="single" borderColor={MUTED} paddingX={1} paddingY={air(1)} marginBottom={1} overflow="hidden">
         {content}
       </Box>
     )
