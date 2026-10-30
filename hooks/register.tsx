@@ -909,7 +909,14 @@ export const register: Register = on => {
         {change.phase === 'review' && (
           <>
             {planDigest(change)}
-            {waitingOn(change, hint('Review the plan, then /opsx:apply'))}
+            {/* /opsx:apply writes no file until a task is checked: say so, for a long first task */}
+            {waitingOn(
+              change,
+              <>
+                {hint('Review the plan, then /opsx:apply')}
+                {hint('Already applying? This moves on once the first task is checked.')}
+              </>,
+            )}
           </>
         )}
 
