@@ -217,6 +217,10 @@ A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pu
 
 `hooks/register.tsx` is the whole mod; `types/index.d.ts` declares the state it keeps. `hooks/register.test.ts` covers the parsing and the rules (who does the next step, ownership, module lookup); `hooks/overview.test.tsx` draws the pane on the terminal and the desktop against a fake two-module repository and clicks through it.
 
+## Security
+
+Report a vulnerability privately, from the repository's **Security** tab: see [SECURITY.md](SECURITY.md). Dependabot keeps the CI's actions up to date, and GitHub's code scanning (CodeQL) and secret scanning watch the repository.
+
 ## License
 
 [MIT](LICENSE)

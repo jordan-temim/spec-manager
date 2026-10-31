@@ -1,0 +1,10 @@
+# The plugin has no package dependencies: only the GitHub Actions of the CI,
+# pinned by commit, are kept up to date
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
