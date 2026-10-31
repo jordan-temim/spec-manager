@@ -125,7 +125,16 @@ Only the current step is coloured, and a slow light band sweeps across it (off w
 - Claude Code with plugin function hooks (2.1.293 or later). On an older version, `claude plugin list` shows the plugin as `failed to load` with `Hook load failed: … "hooks" … expected record`: run `claude update`.
 - `git`, to tell your changes from other people's (optional).
 - The `openspec` CLI on the `PATH` of the process running Claude Code (the pane runs `openspec list` and `openspec status --json`).
-  Installed with nvm? nvm only sets the `PATH` in interactive shells. A small wrapper in `~/.local/bin/openspec` fixes that:
+  Installed with a Node version manager (mise, nvm…)? It sets the `PATH` in your interactive shell only, which the desktop app does not load: the pane then says `openspec` was not found. A small wrapper in `~/.local/bin/openspec` (a folder Claude Code's own install puts on the `PATH`) fixes that.
+
+  With [mise](https://mise.jdx.dev), once OpenSpec is a mise tool (`"npm:@fission-ai/openspec" = "latest"` under `[tools]` in `~/.config/mise/config.toml`, then `mise install`):
+
+  ```bash
+  #!/usr/bin/env bash
+  exec "$HOME/.local/bin/mise" exec -- openspec "$@"
+  ```
+
+  With nvm:
 
   ```bash
   #!/usr/bin/env bash
@@ -134,6 +143,8 @@ Only the current step is coloured, and a slow light band sweeps across it (off w
   done
   echo "openspec not found in ~/.nvm" >&2; exit 127
   ```
+
+  Make it executable (`chmod +x ~/.local/bin/openspec`) and restart the session.
 
 ## Update and remove
 
