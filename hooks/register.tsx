@@ -830,10 +830,12 @@ export const register: Register = on => {
                     </Text>
                   </Box>
                   <Box flexShrink={0} marginLeft={1}>
+                    {/* The chevron alone, no frame: dim at rest, full under the pointer */}
                     <Button
                       key={`section:${id}`}
                       label={isOpen ? '⌄' : '›'}
-                      variant="secondary"
+                      plain
+                      dimColor
                       onPress={() => update($, expanded, old => ({ ...old, [id]: !isOpen }))}
                     />
                   </Box>
