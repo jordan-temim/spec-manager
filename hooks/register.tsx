@@ -808,7 +808,7 @@ export const register: Register = on => {
     )
 
     // Each section opens on its tasks: the current one by itself, the others on a press.
-    // ✓ done, ○ to do, ● a user action
+    // ✓ done, ◦ to do, ● a user action
     const sectionBars = (change: Change) => {
       const current = change.sections.find(s => s.done < s.total)?.num
       return (
@@ -845,7 +845,7 @@ export const register: Register = on => {
                     <Box flexDirection="row" paddingLeft={2}>
                       <Box flexShrink={0}>
                         <Text color={t.isDone ? MUTED : t.isUserAction ? (change.isMine ? SAGE : MUTED) : undefined}>
-                          {t.isDone ? '✓' : t.isUserAction ? '●' : '○'}{' '}
+                          {t.isDone ? '✓' : t.isUserAction ? '●' : '◦'}{' '}
                           {t.id ? `${t.id} ` : ''}
                         </Text>
                       </Box>

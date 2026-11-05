@@ -42,7 +42,7 @@ With several modules, the session opened at the repository top shows an overview
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-overview.png" alt="The overview in the desktop pane: five modules, three changes waiting on you, two on the AI" /></p>
 
-`Open ›` on a module shows its changes: each one with its stepper, its task progress per `tasks.md` section, the task waiting on you and the AI's next one. The section under way lists its tasks (✓ done, ○ to do, ● a user action); `›` opens any other section, `⌄` closes it, for the rest of the session.
+`Open ›` on a module shows its changes: each one with its stepper, its task progress per `tasks.md` section, the task waiting on you and the AI's next one. The section under way lists its tasks (✓ done, ◦ to do, ● a user action); `›` opens any other section, `⌄` closes it, for the rest of the session.
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-module.png" alt="A module in the desktop pane: a change being implemented with its next task waiting on you, and a change the AI is planning" /></p>
 
