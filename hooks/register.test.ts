@@ -23,11 +23,23 @@ const TASKS = `# Tasks
 const ALL_WRITTEN: Artifact[] = ['proposal', 'specs', 'design', 'tasks'].map(name => ({ name, isDone: true }))
 
 describe('tasks.md', () => {
-  test('counts checkboxes per numbered section and skips sections without any', async () => {
+  test('counts and lists the tasks of each numbered section, skipping sections without any', async () => {
     const { sections } = parseTasks(TASKS)
     expect(sections).toEqual([
-      { num: '1', title: 'Setup', done: 2, total: 2 },
-      { num: '2', title: 'Fetch', done: 0, total: 2 },
+      {
+        num: '1', title: 'Setup', done: 2, total: 2,
+        tasks: [
+          { id: '1.1', text: 'Create the skeleton', isUserAction: false, isDone: true },
+          { id: '1.2', text: 'Add .gitignore', isUserAction: false, isDone: true },
+        ],
+      },
+      {
+        num: '2', title: 'Fetch', done: 0, total: 2,
+        tasks: [
+          { id: '2.1', text: 'Run the capture', isUserAction: true, isDone: false },
+          { id: '2.2', text: 'Parse the response', isUserAction: false, isDone: false },
+        ],
+      },
     ])
   })
 

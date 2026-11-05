@@ -42,7 +42,7 @@ With several modules, the session opened at the repository top shows an overview
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-overview.png" alt="The overview in the desktop pane: five modules, three changes waiting on you, two on the AI" /></p>
 
-`Open ›` on a module shows its changes: each one with its stepper, its task progress per `tasks.md` section, the task waiting on you and the AI's next one.
+`Open ›` on a module shows its changes: each one with its stepper, its task progress per `tasks.md` section, the task waiting on you and the AI's next one. The section under way lists its tasks (✓ done, ○ to do, ● a user action); `›` opens any other section, `⌄` closes it, for the rest of the session.
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-module.png" alt="A module in the desktop pane: a change being implemented with its next task waiting on you, and a change the AI is planning" /></p>
 
@@ -64,7 +64,7 @@ Screenshots from a demo repository (a gym management app); the conversation, the
 | --- | --- | --- | --- |
 | Planning | a planning document is missing | `AI` | the document to write next |
 | Plan to review | every planning document written, no task checked (also while `/opsx:apply` works on its first task: the pane moves on once a task is checked) | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count |
-| Implementing | at least one task checked | `YOU` if the next task is a user action, else `AI` | progress per section, your next user-action task, the AI's next task |
+| Implementing | at least one task checked | `YOU` if the next task is a user action, else `AI` | progress per section, the tasks of the current one, your next user-action task, the AI's next task |
 | Ready to archive | every task checked | `YOU` | the specs archiving will merge |
 
 A plan to review sums up the change in a few lines before any code is written:

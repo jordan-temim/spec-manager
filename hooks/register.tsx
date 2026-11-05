@@ -14,6 +14,8 @@ const DISCOVER_EVERY_MS = 60000
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', 'build', 'target', 'vendor', 'openspec'])
 
 const view = atom({ plugin: 'spec-manager', key: 'view' } as const, { roots: [], modules: [] } as View)
+// Sections the reader opened or closed; any other one is open only while it is the current one
+const expanded = atom({ plugin: 'spec-manager', key: 'expanded' } as const, {} as Record<string, boolean>)
 
 // Module state: reset on each reload, which is fine (it only avoids useless work)
 let lastSignature = ''
@@ -155,22 +157,22 @@ export function parseTasks(markdown: string): { sections: Section[]; open: Task[
   for (const line of markdown.split('\n')) {
     const heading = line.match(/^##\s+(\d+)\.\s+(.+)$/)
     if (heading) {
-      section = { num: heading[1], title: heading[2].trim(), done: 0, total: 0 }
+      section = { num: heading[1], title: heading[2].trim(), done: 0, total: 0, tasks: [] }
       sections.push(section)
       continue
     }
     const box = line.match(/^\s*- \[([ xX])\]\s+(.+)$/)
     if (!box) continue
     const isDone = box[1] !== ' '
-    if (section) {
-      section.total++
-      if (isDone) section.done++
-    }
-    if (isDone) continue
     const [, id = '', rest = box[2]] = box[2].match(/^(\d+(?:\.\d+)*)\s+(.+)$/) ?? []
     const isUserAction = USER_ACTION.test(rest)
     const text = rest.replace(USER_ACTION, '').replace(/[`*]/g, '').trim()
-    open.push({ id, text, isUserAction })
+    if (section) {
+      section.total++
+      if (isDone) section.done++
+      section.tasks.push({ id, text, isUserAction, isDone })
+    }
+    if (!isDone) open.push({ id, text, isUserAction })
   }
   return { sections: sections.filter(s => s.total > 0), open }
 }
@@ -662,6 +664,7 @@ export const register: Register = on => {
       </Text>
     )
     const { roots, modules, selected, error, updatedAt, now } = await read($, view)
+    const opened = await read($, expanded)
 
     if (error) {
       return (
@@ -804,26 +807,57 @@ export const register: Register = on => {
       </Box>
     )
 
-    const sectionBars = (change: Change) => (
-      <Box flexDirection="column" marginTop={1} paddingLeft={2}>
-        {change.sections.map(s => {
-          const isComplete = s.done === s.total
-          return (
-            <Box flexDirection="row" alignItems="center">
-              <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                <Text dimColor={isComplete} wrap="truncate-end">{s.num} {s.title}</Text>
+    // Each section opens on its tasks: the current one by itself, the others on a press.
+    // ✓ done, ○ to do, ● a user action
+    const sectionBars = (change: Change) => {
+      const current = change.sections.find(s => s.done < s.total)?.num
+      return (
+        <Box flexDirection="column" marginTop={1} paddingLeft={2}>
+          {change.sections.map(s => {
+            const isComplete = s.done === s.total
+            const id = `${change.name}:${s.num}`
+            const isOpen = opened[id] ?? s.num === current
+            return (
+              <Box flexDirection="column">
+                <Box flexDirection="row" alignItems="center">
+                  <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                    <Text dimColor={isComplete} wrap="truncate-end">{s.num} {s.title}</Text>
+                  </Box>
+                  {bar(s)}
+                  <Box width={5} flexShrink={0} justifyContent="flex-end">
+                    <Text dimColor={isComplete}>
+                      {isComplete ? '✓' : `${s.done}/${s.total}`}
+                    </Text>
+                  </Box>
+                  <Box flexShrink={0} marginLeft={1}>
+                    <Button
+                      key={`section:${id}`}
+                      label={isOpen ? '⌄' : '›'}
+                      variant="secondary"
+                      onPress={() => update($, expanded, old => ({ ...old, [id]: !isOpen }))}
+                    />
+                  </Box>
+                </Box>
+                {isOpen &&
+                  s.tasks.map(t => (
+                    <Box flexDirection="row" paddingLeft={2}>
+                      <Box flexShrink={0}>
+                        <Text color={t.isDone ? MUTED : t.isUserAction ? (change.isMine ? SAGE : MUTED) : undefined}>
+                          {t.isDone ? '✓' : t.isUserAction ? '●' : '○'}{' '}
+                          {t.id ? `${t.id} ` : ''}
+                        </Text>
+                      </Box>
+                      <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                        <Text dimColor={t.isDone} wrap="truncate-end">{t.text}</Text>
+                      </Box>
+                    </Box>
+                  ))}
               </Box>
-              {bar(s)}
-              <Box width={5} flexShrink={0} justifyContent="flex-end">
-                <Text dimColor={isComplete}>
-                  {isComplete ? '✓' : `${s.done}/${s.total}`}
-                </Text>
-              </Box>
-            </Box>
-          )
-        })}
-      </Box>
-    )
+            )
+          })}
+        </Box>
+      )
+    }
 
     // The plan in a few lines, for the review between /opsx:propose and /opsx:apply
     const planDigest = (change: Change) => {

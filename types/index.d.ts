@@ -3,11 +3,11 @@ export type Progress = { done: number; total: number }
 /** A planning document; a skipped one (`skip_specs: true`) counts as done */
 export type Artifact = { name: string; isDone: boolean; isSkipped?: boolean }
 
-/** A `## N. Title` section of tasks.md with its checkbox count */
-export type Section = { num: string; title: string } & Progress
-
 /** An unchecked task of tasks.md */
 export type Task = { id: string; text: string; isUserAction: boolean }
+
+/** A `## N. Title` section of tasks.md with its checkbox count and every task in it */
+export type Section = { num: string; title: string; tasks: (Task & { isDone: boolean })[] } & Progress
 
 /** planning: an artifact is missing; review: all written, no task checked yet */
 export type Phase = 'planning' | 'review' | 'implementing' | 'ready'
@@ -99,6 +99,10 @@ export type View = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'spec-manager': { view: View }
+    'spec-manager': {
+      view: View
+      /** Task sections opened or closed by a press, by `change:num`; the others follow the default */
+      expanded: Record<string, boolean>
+    }
   }
 }
