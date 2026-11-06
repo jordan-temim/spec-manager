@@ -422,6 +422,7 @@ const CLAY = '#d97757' // the AI: Claude's terracotta
 const SAGE = '#6b9b74' // you
 const SLATE = '#4f82c9' // progress: filled bars
 const MUTED = '#8f8d86' // done steps, labels of upcoming steps: only the current step is coloured
+const WASH = '#88878010' // a light see-through grey behind frames and cards, on the desktop
 const TRACK = 'rgba(128,128,128,0.35)'
 const turnColor = (turn: 'you' | 'ai') => (turn === 'you' ? SAGE : CLAY)
 
@@ -986,9 +987,10 @@ export const register: Register = on => {
     )
 
     // Each block sits in its own thin rounded frame, its heading at the top. A fixed
-    // mid grey: the theme's dimmed border all but vanished on the dark theme
-    const frame = (content: any) => (
-      <Box flexDirection="column" borderStyle="round" borderColor={MUTED} paddingX={1} paddingY={air(1)} marginBottom={1} overflow="hidden">
+    // mid grey: the theme's dimmed border all but vanished on the dark theme. On the
+    // desktop a light wash fills it, unless cards inside carry their own
+    const frame = (content: any, isWashed = true) => (
+      <Box flexDirection="column" borderStyle="round" borderColor={MUTED} backgroundColor={Svg && isWashed ? WASH : undefined} paddingX={1} paddingY={air(1)} marginBottom={1} overflow="hidden">
         {content}
       </Box>
     )
@@ -1057,6 +1059,7 @@ export const register: Register = on => {
           borderStyle="round"
           borderColor={MUTED}
           borderDimColor={isOthers}
+          backgroundColor={Svg ? WASH : undefined}
           hover={{ borderColor: SLATE, borderDimColor: false }}
           paddingX={1}
           marginTop={air(1)}
@@ -1105,6 +1108,7 @@ export const register: Register = on => {
               {idle.length > 0 && caption('NO ACTIVE CHANGE')}
               {idle.map(row)}
             </>,
+            false,
           )}
           {legend}
           <Text dimColor>{'/spec-manager <module> also opens one'} · {footer(updatedAt, now)}</Text>

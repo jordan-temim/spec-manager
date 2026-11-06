@@ -117,6 +117,7 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 | Slate blue `#4f82c9` | progress | filled bars; a card's frame under the pointer |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |
+| See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |
 
 Only the current step is coloured, and a slow light band sweeps across it (off when the system asks for reduced motion).
 
