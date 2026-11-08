@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { artifactsFrom, artifactsFromFiles, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, steps, whoseTurn, whyLine } from './register'
+import { absolute, artifactsFrom, artifactsFromFiles, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './register'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -237,5 +237,20 @@ describe('Windows line endings', () => {
     expect(whyLine(crlf('## Why\n\nFirst point. Second.\n\n## What Changes\n'))).toBe('First point.')
     expect(parseDesign(crlf('### D1. Layout\n\n## Open Questions\n\n- One?\n'))).toEqual({ decisions: ['D1 Layout'], openQuestions: ['One?'] })
     expect(specCounts(crlf('### Requirement: A\n#### Scenario: B\n'))).toEqual({ requirements: 1, scenarios: 1 })
+  })
+})
+
+describe('spec paths from openspec', () => {
+  test('a spec is named from the end of its path, wherever the path starts', () => {
+    expect(specName('/repo/pay/openspec/changes/add-refunds/specs/refunds/spec.md')).toBe('refunds')
+    // Resolved through a symlink: not under the folder the pane knows
+    expect(specName('/private/var/repo/pay/openspec/changes/add-refunds/specs/refunds/spec.md')).toBe('refunds')
+    expect(specName('openspec/changes/add-refunds/specs/billing/refunds/spec.md')).toBe('billing/refunds')
+  })
+
+  test('a relative path is read from the module folder', () => {
+    expect(absolute('/repo/pay', 'openspec/changes/a/specs/x/spec.md')).toBe('/repo/pay/openspec/changes/a/specs/x/spec.md')
+    expect(absolute('/repo/pay', './openspec/changes/a/specs/x/spec.md')).toBe('/repo/pay/openspec/changes/a/specs/x/spec.md')
+    expect(absolute('/repo/pay', '/elsewhere/spec.md')).toBe('/elsewhere/spec.md')
   })
 })

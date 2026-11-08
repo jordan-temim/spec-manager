@@ -296,6 +296,15 @@ export function specCounts(markdown: string): { requirements: number; scenarios:
   }
 }
 
+// A change's spec by its file: the folders between its last `/specs/` and `/spec.md`.
+// From the end of the path, so a path openspec resolved through a symlink (macOS's
+// /private/var) or wrote relative still names its capability
+export const specName = (file: string) =>
+  file.slice(file.lastIndexOf('/specs/') + '/specs/'.length).replace(/\/spec\.md$/, '')
+
+// openspec's paths, made absolute against the module folder it ran in
+export const absolute = (dir: string, file: string) => (file.startsWith('/') ? file : `${dir}/${file.replace(/^\.\//, '')}`)
+
 async function loadDigest($: EngineInterface, changeRoot: string, specPaths: string[]) {
   const read = (file: string) => $.fs.read(file).catch(() => '')
   const [proposal, design, ...specs] = await Promise.all([
@@ -306,7 +315,7 @@ async function loadDigest($: EngineInterface, changeRoot: string, specPaths: str
   return {
     why: whyLine(proposal),
     specs: specPaths.map((file, i) => ({
-      name: file.slice(`${changeRoot}/specs/`.length).replace(/\/spec\.md$/, ''),
+      name: specName(file),
       ...specCounts(specs[i] ?? ''),
     })),
     ...parseDesign(design),
@@ -360,7 +369,7 @@ async function loadRoot($: EngineInterface, path: string, full = true): Promise<
   const specPathsOf = new Map<string, string[]>()
   for (const one of status.changes ?? []) {
     artifactsOf.set(one.changeName, artifactsFrom(one))
-    specPathsOf.set(one.changeName, one.artifactPaths?.specs?.existingOutputPaths ?? [])
+    specPathsOf.set(one.changeName, (one.artifactPaths?.specs?.existingOutputPaths ?? []).map((file: string) => absolute(path, file)))
   }
   const changes: Change[] = await Promise.all(
     (list.changes ?? []).map(async (one: any) => {
