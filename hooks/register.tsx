@@ -19,7 +19,8 @@ const expanded = atom({ plugin: 'spec-manager', key: 'expanded' } as const, {} a
 
 // Module state: reset on each reload, which is fine (it only avoids useless work)
 let lastSignature = ''
-let isRunning = false
+// The refresh under way, its replays included: a command that needs the modules awaits it
+let running: Promise<void> | undefined
 // A forced refresh asked while one runs is replayed after it, never dropped
 let isPending = false
 // Latest root read per module (full or light): a module opens at once from here
@@ -365,28 +366,43 @@ const summarize = (base: string, root: Root): Module => ({
   lastModified: root.changes.map(c => c.lastModified ?? '').sort().pop() || undefined,
 })
 
-async function refresh($: EngineInterface, force = false, rediscover = false) {
-  if (isRunning) {
+function refresh($: EngineInterface, force = false, rediscover = false): Promise<void> {
+  if (running) {
     if (force) isPending = true
-    return
+    return running
   }
-  isRunning = true
+  running = (async () => {
+    await refreshOnce($, force, rediscover)
+    while (isPending) {
+      isPending = false
+      await refreshOnce($, true)
+    }
+  })().finally(() => {
+    running = undefined
+  })
+  return running
+}
+
+async function refreshOnce($: EngineInterface, force: boolean, rediscover: boolean) {
   try {
     const now = await $.clock.now()
+    // Its own copy: `/spec-manager` may reset `found` while this one awaits
+    let current = found
     // Walking the tree is the costly part: redo it once a minute, or when asked
-    if (rediscover || !found || now - found.at > DISCOVER_EVERY_MS) {
-      const isFirst = !found
-      found = { ...(await discover($)), at: now }
-      if (!hasOpened && found.paths.length > 0) {
+    if (rediscover || !current || now - current.at > DISCOVER_EVERY_MS) {
+      const isFirst = !current
+      current = { ...(await discover($)), at: now }
+      found = current
+      if (!hasOpened && current.paths.length > 0) {
         hasOpened = true
         void $.ui.open({ id: PANE, title: TITLE })
       }
       if (isFirst || (await read($, view)).selected === undefined) {
-        const selected = await initialSelection($, found.base, found.inside, found.paths)
+        const selected = await initialSelection($, current.base, current.inside, current.paths)
         await update($, view, old => ({ ...old, selected }))
       }
     }
-    const { base, paths } = found
+    const { base, paths } = current
     const sig = await signature($, paths)
     if (!force && sig === lastSignature) {
       // Nothing moved: say when it was last checked
@@ -405,12 +421,6 @@ async function refresh($: EngineInterface, force = false, rediscover = false) {
     lastSignature = ''
     const message = err instanceof Error ? err.message : String(err)
     await update($, view, old => ({ ...old, error: message }))
-  } finally {
-    isRunning = false
-    if (isPending) {
-      isPending = false
-      void refresh($, true)
-    }
   }
 }
 
