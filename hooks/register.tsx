@@ -17,18 +17,35 @@ const view = atom({ plugin: 'spec-manager', key: 'view' } as const, { roots: [],
 // Sections the reader opened or closed; any other one is open only while it is the current one
 const expanded = atom({ plugin: 'spec-manager', key: 'expanded' } as const, {} as Record<string, boolean>)
 
-// Module state: reset on each reload, which is fine (it only avoids useless work)
-let lastSignature = ''
-// The refresh under way, its replays included: a command that needs the modules awaits it
-let running: Promise<void> | undefined
-// A forced refresh asked while one runs is replayed after it, never dropped
-let isPending = false
-// Latest root read per module (full or light): a module opens at once from here
-const cache = new Map<string, Root>()
-let found: { base: string; inside?: string; paths: string[]; at: number } | undefined
-// The pane opens by itself once there is an OpenSpec module to show, and only once:
-// a project without openspec/ gets no pane until /spec-manager or `openspec init`
-let hasOpened = false
+// What a session keeps between its hooks, apart from what it draws. Kept per session
+// should the host ever run several in one process: each its own repository, its own
+// refresh. Reset on each reload, which is fine (it only avoids useless work)
+type Session = {
+  lastSignature: string
+  /** The refresh under way, its replays included: a command that needs the modules awaits it */
+  running?: Promise<void>
+  /** A forced refresh asked while one runs is replayed after it, never dropped */
+  isPending: boolean
+  /** Latest root read per module (full or light): a module opens at once from here */
+  cache: Map<string, Root>
+  found?: { base: string; inside?: string; paths: string[]; at: number }
+  /** The pane opens by itself once there is an OpenSpec module to show, and only once:
+   *  a project without openspec/ gets no pane until /spec-manager or `openspec init` */
+  hasOpened: boolean
+  /** When the next look at the files is due, for the countdown in the footer */
+  nextPollAt: number
+}
+const sessions = new Map<string, Session>()
+async function sessionOf($: EngineInterface): Promise<Session> {
+  // No id to be had (a host or test that does not answer it): one shared state, as before
+  const id = await $.session.id().catch(() => '')
+  let one = sessions.get(id)
+  if (!one) {
+    one = { lastSignature: '', isPending: false, cache: new Map(), hasOpened: false, nextPollAt: 0 }
+    sessions.set(id, one)
+  }
+  return one
+}
 
 const parentOf = (dir: string) => dir.slice(0, dir.lastIndexOf('/'))
 
@@ -88,19 +105,20 @@ async function initialSelection($: EngineInterface, base: string, inside: string
 export const settle = (selected: string | undefined, paths: string[]) =>
   paths.length === 1 ? paths[0] : selected !== ALL && !paths.includes(selected ?? '') ? ALL : selected
 
-async function select($: EngineInterface, wanted: string) {
+async function select($: EngineInterface, s: Session, wanted: string) {
+  const { found } = s
   const selected = found ? (settle(wanted, found.paths) ?? wanted) : wanted
   if (found) await $.store.set(`selected:${found.base}`, selected)
   // Draw at once from what is already read, then fill in that one module only
-  const cached = cache.get(selected)
+  const cached = s.cache.get(selected)
   await update($, view, old => ({ ...old, selected, roots: cached ? [cached] : [] }))
-  if (selected !== ALL) void loadSelected($, selected)
+  if (selected !== ALL) void loadSelected($, s, selected)
 }
 
-async function loadSelected($: EngineInterface, path: string) {
+async function loadSelected($: EngineInterface, s: Session, path: string) {
   try {
     const root = await loadRoot($, path)
-    cache.set(path, root)
+    s.cache.set(path, root)
     await update($, view, old => (old.selected === path ? { ...old, roots: [root] } : old))
   } catch {
     // The next refresh will say what went wrong
@@ -396,35 +414,35 @@ const summarize = (base: string, root: Root): Module => ({
   lastModified: root.changes.map(c => c.lastModified ?? '').sort().pop() || undefined,
 })
 
-function refresh($: EngineInterface, force = false, rediscover = false): Promise<void> {
-  if (running) {
-    if (force) isPending = true
-    return running
+function refresh($: EngineInterface, s: Session, force = false, rediscover = false): Promise<void> {
+  if (s.running) {
+    if (force) s.isPending = true
+    return s.running
   }
-  running = (async () => {
-    await refreshOnce($, force, rediscover)
-    while (isPending) {
-      isPending = false
-      await refreshOnce($, true)
+  s.running = (async () => {
+    await refreshOnce($, s, force, rediscover)
+    while (s.isPending) {
+      s.isPending = false
+      await refreshOnce($, s, true)
     }
   })().finally(() => {
-    running = undefined
+    s.running = undefined
   })
-  return running
+  return s.running
 }
 
-async function refreshOnce($: EngineInterface, force: boolean, rediscover: boolean) {
+async function refreshOnce($: EngineInterface, s: Session, force: boolean, rediscover: boolean) {
   try {
     const now = await $.clock.now()
     // Its own copy: `/spec-manager` may reset `found` while this one awaits
-    let current = found
+    let current = s.found
     // Walking the tree is the costly part: redo it once a minute, or when asked
     if (rediscover || !current || now - current.at > DISCOVER_EVERY_MS) {
       const isFirst = !current
       current = { ...(await discover($)), at: now }
-      found = current
-      if (!hasOpened && current.paths.length > 0) {
-        hasOpened = true
+      s.found = current
+      if (!s.hasOpened && current.paths.length > 0) {
+        s.hasOpened = true
         void $.ui.open({ id: PANE, title: TITLE })
       }
       if (isFirst || (await read($, view)).selected === undefined) {
@@ -434,17 +452,17 @@ async function refreshOnce($: EngineInterface, force: boolean, rediscover: boole
     }
     const { base, paths } = current
     const sig = await signature($, paths)
-    if (!force && sig === lastSignature) {
+    if (!force && sig === s.lastSignature) {
       // Nothing moved: say when it was last checked
       await update($, view, old => ({ ...old, updatedAt: now, now }))
       return
     }
-    lastSignature = sig
+    s.lastSignature = sig
     const wanted = (await read($, view)).selected
     const selected = settle(wanted, paths)
     // Every module is read light for the overview; the selected one in full
     const light = await Promise.all(paths.map(p => (p === selected ? loadRoot($, p) : loadRoot($, p, false))))
-    for (const root of light) cache.set(root.path, root)
+    for (const root of light) s.cache.set(root.path, root)
     const modules = light.map(root => summarize(base, root))
     const roots = light.filter(root => root.path === selected)
     // A module picked while this read keeps its pick: select() and loadSelected own its roots
@@ -454,7 +472,7 @@ async function refreshOnce($: EngineInterface, force: boolean, rediscover: boole
         : { ...old, modules, updatedAt: now, now, error: undefined },
     )
   } catch (err) {
-    lastSignature = ''
+    s.lastSignature = ''
     const message = err instanceof Error ? err.message : String(err)
     await update($, view, old => ({ ...old, error: message }))
   }
@@ -521,7 +539,7 @@ const clock = (ms: number) => {
 }
 
 // "updated at 20:35:37 · refresh in 2s"
-const footer = (updatedAt: number, now: number | undefined) => {
+const footer = (nextPollAt: number, updatedAt: number, now: number | undefined) => {
   const left = now === undefined ? undefined : Math.max(0, Math.ceil((nextPollAt - now) / 1000))
   return `updated at ${clock(updatedAt)}${left === undefined ? '' : ` · refresh in ${left}s`}`
 }
@@ -634,20 +652,18 @@ const PHASE_LABEL = {
   implementing: 'Implementing',
   ready: 'Ready to archive',
 } as const
-// When the next look at the files is due, for the countdown in the footer
-let nextPollAt = 0
-
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'spec-manager', description: 'Show the Spec Manager pane (OpenSpec changes)' })
-    void refresh($, true)
-    nextPollAt = (await $.clock.now()) + POLL_MS
+    const s = await sessionOf($)
+    void refresh($, s, true)
+    s.nextPollAt = (await $.clock.now()) + POLL_MS
     // The pane reads files only: it looks again every 10 seconds (and searches for new
     // modules at once while it has none, so an `openspec init` shows up quickly)
     $.clock.every(POLL_MS, () => {
-      void refresh($, false, found?.paths.length === 0)
+      void refresh($, s, false, s.found?.paths.length === 0)
       void $.clock.now().then(now => {
-        nextPollAt = now + POLL_MS
+        s.nextPollAt = now + POLL_MS
       })
     })
     // Every second, move the clock the countdown and the "last activity" times read
@@ -662,21 +678,23 @@ export const register: Register = on => {
   // /spec-manager <module>   shows that module (its folder name or the end of its path)
   // /spec-manager all        shows every module
   on('command.run', { command: 'spec-manager' }, async ($, e) => {
-    hasOpened = true
+    const s = await sessionOf($)
+    s.hasOpened = true
     await $.ui.open({ id: PANE, title: TITLE })
     if (e.args.trim() === '') {
       // Start over: look for the modules again and pick what to show as at session start
-      found = undefined
-      void refresh($, true)
+      s.found = undefined
+      void refresh($, s, true)
       return { text: 'Spec Manager pane opened.' }
     }
-    if (!found) await refresh($, true, true)
+    if (!s.found) await refresh($, s, true, true)
+    const { found } = s
     const target = found && resolveModule(e.args, found.paths, found.base)
     if (!found || !target) {
       const names = found ? found.paths.map(p => moduleName(found!.base, p)).join(', ') : ''
       return { text: `No OpenSpec module matches "${e.args.trim()}".${names ? ` Modules: ${names}` : ''}` }
     }
-    await select($, target)
+    await select($, s, target)
     return { text: target === ALL ? 'Showing every OpenSpec module.' : `Showing ${moduleName(found.base, target)}.` }
   })
 
@@ -712,6 +730,7 @@ export const register: Register = on => {
     )
     const { roots, modules, selected, error, updatedAt, now } = await read($, view)
     const opened = await read($, expanded)
+    const session = await sessionOf($)
     // SPECS and ARCHIVED start closed, heading and count only: a long list took the pane
     const areSpecsOpen = opened['block:specs'] ?? false
     const isArchiveOpen = opened['block:archived'] ?? false
@@ -1134,7 +1153,7 @@ export const register: Register = on => {
               <Text dimColor>{m.lastModified && now !== undefined ? ago(m.lastModified, now) : ''}</Text>
             </Box>
             <Box flexShrink={0} marginLeft={1}>
-              <Button key={`open:${m.path}`} label="Open ›" variant="secondary" onPress={() => select($, m.path)} />
+              <Button key={`open:${m.path}`} label="Open ›" variant="secondary" onPress={() => select($, session, m.path)} />
             </Box>
           </Box>
           {m.items.map(changeLine)}
@@ -1149,7 +1168,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           <Box flexShrink={0} marginLeft={1}>
-            <Button key={`open:${m.path}`} label="Open ›" variant="secondary" onPress={() => select($, m.path)} />
+            <Button key={`open:${m.path}`} label="Open ›" variant="secondary" onPress={() => select($, session, m.path)} />
           </Box>
         </Box>
       )
@@ -1169,7 +1188,7 @@ export const register: Register = on => {
             false,
           )}
           {legend}
-          <Text dimColor>{'/spec-manager <module> also opens one'} · {footer(updatedAt, now)}</Text>
+          <Text dimColor>{'/spec-manager <module> also opens one'} · {footer(session.nextPollAt, updatedAt, now)}</Text>
         </Box>
       )
     }
@@ -1179,7 +1198,7 @@ export const register: Register = on => {
     const nav =
       modules.length > 1 && current ? (
         <Box flexDirection="row" alignItems="center" marginBottom={1}>
-          <Button key="modules:all" label="‹ All modules" variant="secondary" onPress={() => select($, ALL)} />
+          <Button key="modules:all" label="‹ All modules" variant="secondary" onPress={() => select($, session, ALL)} />
           <Box flexShrink={1} minWidth={0} marginLeft={2}>
             <Text wrap="truncate-end">
               <Text bold>{current.name}</Text>
@@ -1255,7 +1274,7 @@ export const register: Register = on => {
         )}
 
         {legend}
-        <Text dimColor>{footer(updatedAt, now)}</Text>
+        <Text dimColor>{footer(session.nextPollAt, updatedAt, now)}</Text>
       </Box>
     )
   })

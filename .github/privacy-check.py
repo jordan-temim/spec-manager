@@ -2,7 +2,8 @@
 
 Reads `claude plugin validate . --json` on stdin. Spec Manager must hook only its
 session start, its own command and the drawing of its pane, and call only the
-clock, files, openspec/git, its own state and store, and its pane: nothing that
+clock, files, openspec/git, the session's folder and id (to keep each session's
+state apart), its own state and store, and its pane: nothing that
 reaches the conversation (messages, prompts, answers, tool calls, the model) or
 sends anything out.
 
@@ -22,7 +23,7 @@ ALLOWED_CALLS = {
     "$.command.register",
     "$.fs.exists", "$.fs.list", "$.fs.read",
     "$.process.run",
-    "$.session.cwd",
+    "$.session.cwd", "$.session.id",
     "$.state.get", "$.state.set",
     "$.store.get", "$.store.set",
     "$.ui.open", "$.ui.resolve",
