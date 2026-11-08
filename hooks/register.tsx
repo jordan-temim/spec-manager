@@ -410,13 +410,19 @@ async function refreshOnce($: EngineInterface, force: boolean, rediscover: boole
       return
     }
     lastSignature = sig
-    const selected = settle((await read($, view)).selected, paths)
+    const wanted = (await read($, view)).selected
+    const selected = settle(wanted, paths)
     // Every module is read light for the overview; the selected one in full
     const light = await Promise.all(paths.map(p => (p === selected ? loadRoot($, p) : loadRoot($, p, false))))
     for (const root of light) cache.set(root.path, root)
     const modules = light.map(root => summarize(base, root))
     const roots = light.filter(root => root.path === selected)
-    await update($, view, old => ({ ...old, roots, modules, selected, updatedAt: now, now, error: undefined }))
+    // A module picked while this read keeps its pick: select() and loadSelected own its roots
+    await update($, view, old =>
+      old.selected === wanted
+        ? { ...old, roots, modules, selected, updatedAt: now, now, error: undefined }
+        : { ...old, modules, updatedAt: now, now, error: undefined },
+    )
   } catch (err) {
     lastSignature = ''
     const message = err instanceof Error ? err.message : String(err)
