@@ -136,6 +136,31 @@ describe('stepper', () => {
       'archive:todo',
     ])
   })
+
+  test('while planning, the missing document is current and the rest to come', () => {
+    const artifacts = ALL_WRITTEN.map(a => (a.name === 'design' ? { ...a, isDone: false } : a))
+    const change = { artifacts, phase: 'planning' } as Change
+    expect(steps(change).map(s => `${s.name}:${s.state}`)).toEqual([
+      'proposal:done',
+      'specs:done',
+      'design:current',
+      'tasks:done',
+      'apply:todo',
+      'archive:todo',
+    ])
+  })
+
+  test('ready to archive: apply done, archive current', () => {
+    const change = { artifacts: ALL_WRITTEN, phase: 'ready' } as Change
+    expect(steps(change).map(s => `${s.name}:${s.state}`)).toEqual([
+      'proposal:done',
+      'specs:done',
+      'design:done',
+      'tasks:done',
+      'apply:done',
+      'archive:current',
+    ])
+  })
 })
 
 describe('card dots', () => {
@@ -257,6 +282,9 @@ describe('skipped documents', () => {
   test('without a verdict from openspec, a document is done when its files exist', () => {
     const { artifacts: _, ...older } = status
     expect(artifactsFrom(older).find(a => a.name === 'specs')?.isDone).toBe(false)
+    // ... and the documents whose files are there are done, none of them skipped
+    expect(artifactsFrom(older).filter(a => a.isDone).map(a => a.name)).toEqual(['proposal', 'design', 'tasks'])
+    expect(artifactsFrom(older).some(a => a.isSkipped)).toBe(false)
   })
 })
 
