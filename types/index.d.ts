@@ -101,7 +101,7 @@ declare module 'claude-code' {
   interface PluginState {
     'spec-manager': {
       view: View
-      /** Task sections opened or closed by a press, by `change:num`; the others follow the default */
+      /** Blocks opened or closed by a press: task sections by `change:num`, `block:specs`, `block:archived` */
       expanded: Record<string, boolean>
     }
   }

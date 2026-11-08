@@ -77,7 +77,7 @@ A task is a **user action** when its text starts with `*(user action …)*` (or 
 
 The tag is inferred from the files alone. OpenSpec does not record reviews: a checked box means the task was checked, not that someone reviewed it. `/opsx:explore` writes no file, so exploring shows nothing until a change exists.
 
-`SPECS` lists the main specs (`openspec/specs/`) with their requirement count; `ARCHIVED` the three most recent archived changes.
+`SPECS` lists the main specs (`openspec/specs/`) with their requirement count; `ARCHIVED` the three most recent archived changes. Both start closed, their heading and count only: `›` opens one, `⌄` closes it, for the rest of the session.
 
 ## Several modules in one repository
 

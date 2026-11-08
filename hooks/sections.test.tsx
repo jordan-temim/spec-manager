@@ -34,8 +34,8 @@ const fakeRepo = (on: any) => {
     if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n')
     const paths = Object.fromEntries(['proposal', 'specs', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${n}.md`] }]))
     if (verb === 'status') return out(JSON.stringify({ changes: [{ changeName: 'add-refunds', artifactPaths: paths }] }))
-    if (flag === '--specs') return out(JSON.stringify({ specs: [] }))
-    if (flag === '--archived') return out(JSON.stringify({ changes: [] }))
+    if (flag === '--specs') return out(JSON.stringify({ specs: [{ id: 'invoices', requirementCount: 4 }, { id: 'payouts', requirementCount: 2 }] }))
+    if (flag === '--archived') return out(JSON.stringify({ changes: [{ name: 'add-invoices' }] }))
     return out(JSON.stringify({ changes: [{ name: 'add-refunds', completedTasks: 2, totalTasks: 5, lastModified: '2026-10-15T10:00:00Z' }] }))
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -65,6 +65,30 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/Call the refund API/)).toBe(false)
     await ui.press({ key: 'section:add-refunds:3' })
     expect(await shown(/Refund button/)).toBe(false)
+    await ui.unmount()
+  })
+}
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on the ${surface}, SPECS and ARCHIVED start closed and a press opens them`, async ($, on) => {
+    fakeRepo(on)
+    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
+    const shown = async (text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
+
+    // Headings and counts only
+    expect(await shown(/SPECS/)).toBe(true)
+    expect(await shown(/ARCHIVED/)).toBe(true)
+    expect(await shown(/payouts/)).toBe(false)
+    expect(await shown(/add-invoices/)).toBe(false)
+
+    await ui.press({ key: 'block:specs' })
+    expect(await shown(/payouts/)).toBe(true)
+    expect(await shown(/add-invoices/)).toBe(false)
+    await ui.press({ key: 'block:archived' })
+    expect(await shown(/add-invoices/)).toBe(true)
+    await ui.press({ key: 'block:specs' })
+    expect(await shown(/payouts/)).toBe(false)
     await ui.unmount()
   })
 }

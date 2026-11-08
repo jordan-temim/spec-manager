@@ -666,6 +666,9 @@ export const register: Register = on => {
     )
     const { roots, modules, selected, error, updatedAt, now } = await read($, view)
     const opened = await read($, expanded)
+    // SPECS and ARCHIVED start closed, heading and count only: a long list took the pane
+    const areSpecsOpen = opened['block:specs'] ?? false
+    const isArchiveOpen = opened['block:archived'] ?? false
 
     if (error) {
       return (
@@ -691,8 +694,8 @@ export const register: Register = on => {
       )
 
     // Accent-colored caps so the three blocks stand apart from their content
-    const heading = (label: string, count: number, badge?: any) => (
-      <Box flexDirection="row" marginBottom={1}>
+    const heading = (label: string, count: number, badge?: any, isClosed = false) => (
+      <Box flexDirection="row" alignItems="center" marginBottom={isClosed ? 0 : 1}>
         <Text bold>{label}</Text>
         <Box flexGrow={1}>
           <Text dimColor> {count}</Text>
@@ -808,6 +811,20 @@ export const register: Register = on => {
       </Box>
     )
 
+    // The chevron alone, no frame: dim at rest, full under the pointer. A press keeps
+    // the block open or closed for the rest of the session
+    const chevron = (key: string, id: string, isOpen: boolean) => (
+      <Box flexShrink={0} marginLeft={1}>
+        <Button
+          key={key}
+          label={isOpen ? '⌄' : '›'}
+          plain
+          dimColor
+          onPress={() => update($, expanded, old => ({ ...old, [id]: !isOpen }))}
+        />
+      </Box>
+    )
+
     // Each section opens on its tasks: the current one by itself, the others on a press.
     // ✓ done, ◦ to do, ● a user action
     const sectionBars = (change: Change) => {
@@ -830,16 +847,7 @@ export const register: Register = on => {
                       {isComplete ? '✓' : `${s.done}/${s.total}`}
                     </Text>
                   </Box>
-                  <Box flexShrink={0} marginLeft={1}>
-                    {/* The chevron alone, no frame: dim at rest, full under the pointer */}
-                    <Button
-                      key={`section:${id}`}
-                      label={isOpen ? '⌄' : '›'}
-                      plain
-                      dimColor
-                      onPress={() => update($, expanded, old => ({ ...old, [id]: !isOpen }))}
-                    />
-                  </Box>
+                  {chevron(`section:${id}`, id, isOpen)}
                 </Box>
                 {isOpen &&
                   s.tasks.map(t => (
@@ -1160,9 +1168,9 @@ export const register: Register = on => {
 
         {frame(
           <>
-            {heading('SPECS', specs.length)}
+            {heading('SPECS', specs.length, specs.length > 0 && chevron('block:specs', 'block:specs', areSpecsOpen), specs.length > 0 && !areSpecsOpen)}
             {specs.length === 0 && none}
-            {specs.map(spec => (
+            {areSpecsOpen && specs.map(spec => (
               <Box flexDirection="row" paddingLeft={1}>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text wrap="truncate-end">
@@ -1177,14 +1185,14 @@ export const register: Register = on => {
 
         {frame(
           <>
-            {heading('ARCHIVED', archivedTotal)}
+            {heading('ARCHIVED', archivedTotal, archivedTotal > 0 && chevron('block:archived', 'block:archived', isArchiveOpen), archivedTotal > 0 && !isArchiveOpen)}
             {archivedTotal === 0 && none}
-            {archived.map(name => (
+            {isArchiveOpen && archived.map(name => (
               <Box paddingLeft={1}>
                 <Text dimColor wrap="truncate-end">✓ {name}</Text>
               </Box>
             ))}
-            {archivedTotal > archived.length && (
+            {isArchiveOpen && archivedTotal > archived.length && (
               <Box paddingLeft={1}>
                 <Text dimColor italic>+ {archivedTotal - archived.length} more</Text>
               </Box>
