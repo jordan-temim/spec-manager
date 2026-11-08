@@ -8,6 +8,8 @@ const DIRS: Record<string, [string, 'dir' | 'file'][]> = {
   '/repo': [['.git', 'dir'], ['packages', 'dir']],
   '/repo/packages': [['paiement', 'dir']],
   [MODULE]: [['openspec', 'dir']],
+  [`${MODULE}/openspec`]: [['changes', 'dir']],
+  [`${MODULE}/openspec/changes`]: [['add-refunds', 'dir']],
   [CHANGE]: [['proposal.md', 'file'], ['specs', 'dir']],
   [`${CHANGE}/specs`]: [['refunds', 'dir']],
   [`${CHANGE}/specs/refunds`]: [['spec.md', 'file']],
