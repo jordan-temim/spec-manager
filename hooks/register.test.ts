@@ -97,6 +97,13 @@ describe('plan digest', () => {
     expect(parseDesign(design)).toEqual({ decisions: ['D1 Layout', 'D2 Data'], openQuestions: ['One?', 'Two?'] })
   })
 
+  test('a bullet saying there is no question is not one', () => {
+    for (const bullet of ['None', 'None.', 'N/A', 'Aucune', "Aucune pour l'instant.", 'Nothing yet', '—']) {
+      expect(parseDesign(`## Open Questions\n\n- ${bullet}\n`).openQuestions).toEqual([])
+    }
+    expect(parseDesign('## Open Questions\n\n- None of the refunds partial?\n').openQuestions).toEqual(['None of the refunds partial?'])
+  })
+
   test('counts requirements and scenarios', () => {
     const spec = '### Requirement: A\n#### Scenario: a1\n#### Scenario: a2\n### Requirement: B\n#### Scenario: b1\n'
     expect(specCounts(spec)).toEqual({ requirements: 2, scenarios: 3 })

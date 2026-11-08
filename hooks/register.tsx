@@ -256,9 +256,14 @@ export function whyLine(proposal: string): string | undefined {
 export function parseDesign(design: string): { decisions: string[]; openQuestions: string[] } {
   const decisions = [...design.matchAll(/^### (D\d+)\.\s+(.+)$/gm)].map(m => `${m[1]} ${m[2].replace(/[`*]/g, '').trim()}`)
   const section = design.split(/^## Open Questions\s*$/m)[1]?.split(/^## /m)[0] ?? ''
-  const openQuestions = [...section.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.+)$/gm)].map(m => m[1].replace(/[`*]/g, '').trim())
+  const openQuestions = [...section.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.+)$/gm)]
+    .map(m => m[1].replace(/[`*]/g, '').trim())
+    .filter(q => !NO_QUESTION.test(q))
   return { decisions, openQuestions }
 }
+// "- None", "- Aucune pour l'instant", "- N/A", "- —": a bullet saying there is no
+// question. One that asks something ("None of them?") keeps its question mark
+const NO_QUESTION = /^(?:(?:none|n\/a|nothing|aucune?|néant|rien)\b[^?]*|[-–—]+)$/i
 
 export function specCounts(spec: string): { requirements: number; scenarios: number } {
   return {
