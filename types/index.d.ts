@@ -55,6 +55,8 @@ export type Root = {
   /** Most recent archived change names, at most a few */
   archived: string[]
   archivedTotal: number
+  /** Read for the overview only: no plan digest, specs or archives yet */
+  isLight?: boolean
 }
 
 /** One active change as its module's card shows it */

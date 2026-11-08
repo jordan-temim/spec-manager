@@ -368,6 +368,7 @@ async function loadRoot($: EngineInterface, path: string, full = true): Promise<
     specs: (specs.specs ?? []).map((one: any) => ({ id: one.id, requirements: one.requirementCount ?? 0 })),
     archived: archivedNames.slice(0, ARCHIVED_SHOWN),
     archivedTotal: archivedNames.length,
+    ...(full ? {} : { isLight: true }),
   }
 }
 
@@ -724,6 +725,9 @@ export const register: Register = on => {
     const specs = roots.flatMap(root => root.specs)
     const archived = roots.flatMap(root => root.archived)
     const archivedTotal = roots.reduce((sum, root) => sum + root.archivedTotal, 0)
+    // A module just opened from the overview's light read: what only the full read
+    // brings (digest, specs, archives) says it is coming, never "none" or 0
+    const isLight = roots.some(root => root.isLight)
 
     const bar = (p: Progress) =>
       Svg && (
@@ -733,7 +737,7 @@ export const register: Register = on => {
       )
 
     // Accent-colored caps so the three blocks stand apart from their content
-    const heading = (label: string, count: number, badge?: any, isClosed = false) => (
+    const heading = (label: string, count: number | string, badge?: any, isClosed = false) => (
       <Box flexDirection="row" alignItems="center" marginBottom={isClosed ? 0 : 1}>
         <Text bold>{label}</Text>
         <Box flexGrow={1}>
@@ -992,7 +996,7 @@ export const register: Register = on => {
 
         {change.phase === 'review' && (
           <>
-            {planDigest(change)}
+            {!isLight && planDigest(change)}
             {/* /opsx:apply writes no file until a task is checked: say so, for a long first task */}
             {waitingOn(
               change,
@@ -1016,10 +1020,11 @@ export const register: Register = on => {
           waitingOn(
             change,
             <>
-              {hint(
-                `Archiving will merge ${change.digest.specs.length} spec${change.digest.specs.length === 1 ? '' : 's'}: ` +
-                  change.digest.specs.map(s => s.name).join(' · '),
-              )}
+              {!isLight &&
+                hint(
+                  `Archiving will merge ${change.digest.specs.length} spec${change.digest.specs.length === 1 ? '' : 's'}: ` +
+                    change.digest.specs.map(s => s.name).join(' · '),
+                )}
               {hint('/opsx:archive')}
             </>,
           )}
@@ -1207,8 +1212,10 @@ export const register: Register = on => {
 
         {frame(
           <>
-            {heading('SPECS', specs.length, specs.length > 0 && chevron('block:specs', 'block:specs', areSpecsOpen), specs.length > 0 && !areSpecsOpen)}
-            {specs.length === 0 && none}
+            {isLight
+              ? heading('SPECS', '…', undefined, true)
+              : heading('SPECS', specs.length, specs.length > 0 && chevron('block:specs', 'block:specs', areSpecsOpen), specs.length > 0 && !areSpecsOpen)}
+            {!isLight && specs.length === 0 && none}
             {areSpecsOpen && specs.map(spec => (
               <Box flexDirection="row" paddingLeft={1}>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
@@ -1224,8 +1231,10 @@ export const register: Register = on => {
 
         {frame(
           <>
-            {heading('ARCHIVED', archivedTotal, archivedTotal > 0 && chevron('block:archived', 'block:archived', isArchiveOpen), archivedTotal > 0 && !isArchiveOpen)}
-            {archivedTotal === 0 && none}
+            {isLight
+              ? heading('ARCHIVED', '…', undefined, true)
+              : heading('ARCHIVED', archivedTotal, archivedTotal > 0 && chevron('block:archived', 'block:archived', isArchiveOpen), archivedTotal > 0 && !isArchiveOpen)}
+            {!isLight && archivedTotal === 0 && none}
             {isArchiveOpen && archived.map(name => (
               <Box paddingLeft={1}>
                 <Text dimColor wrap="truncate-end">✓ {name}</Text>
