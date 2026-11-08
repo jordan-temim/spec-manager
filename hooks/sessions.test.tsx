@@ -22,11 +22,16 @@ test('two sessions in one process keep their own modules', async ($, on) => {
     return { value: names.map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) }
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
-  // Each module has one change of its own, named after it: what a pane shows tells whose it is
+  // Each module has one change of its own, named after it: what a pane shows tells whose it is.
+  // Only from the module's own folder: openspec run anywhere else lists nothing
+  const CHANGES: Record<string, string> = {
+    '/repo-a/packages/paiement': 'paiement-change',
+    '/repo-b/packages/catalogue': 'catalogue-change',
+  }
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
     const [cmd, verb, flag] = e.argv
-    const change = (e.init?.cwd ?? '').endsWith('catalogue') ? 'catalogue-change' : 'paiement-change'
-    const body = verb === 'list' && !flag?.startsWith('--s') && flag !== '--archived'
+    const change = CHANGES[e.init?.cwd ?? '']
+    const body = change && verb === 'list' && !flag?.startsWith('--s') && flag !== '--archived'
       ? { changes: [{ name: change, completedTasks: 0, totalTasks: 0 }] }
       : { changes: [], specs: [] }
     const stdout = cmd === 'git' ? (verb === 'config' ? 'me@example.org\n' : '') : JSON.stringify(body)
