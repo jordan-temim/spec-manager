@@ -131,3 +131,14 @@ test('the pane says what the two tags mean, on both surfaces', async ($, on) => 
     expect(await ui.find({ type: 'Text', text: /AI builds · YOU act/ })).toBeDefined()
   }
 })
+
+test('a change of another schema gets as many dots as it has steps', async ($, on) => {
+  fakeRepo(on)
+  await runCommand($, 'all')
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'terminal', ...PANE, props })
+  // catalogue's change has one document (proposal), so three steps: proposal, apply,
+  // archive; drawn ● ◉ ○ on the terminal, not six as the spec-driven ones
+  const dots = await ui.find({ type: 'Text', text: /^●◉○$/ })
+  expect(dots).toBeDefined()
+  await ui.unmount()
+})

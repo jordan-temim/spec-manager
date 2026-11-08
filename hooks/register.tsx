@@ -21,11 +21,18 @@ const expanded = atom({ plugin: 'spec-manager', key: 'expanded' } as const, {} a
 // should the host ever run several in one process: each its own repository, its own
 // refresh. Reset on each reload, which is fine (it only avoids useless work)
 type Session = {
-  lastSignature: string
+  /** Each module's files as last read, by path: only a module whose files moved is read again */
+  signatures: Map<string, string>
+  /** Reads numbered as they start, and the newest that landed per module: a slow read
+   *  ending after a later one never brings older data back */
+  reads: number
+  readAt: Map<string, number>
   /** The refresh under way, its replays included: a command that needs the modules awaits it */
   running?: Promise<void>
   /** A forced refresh asked while one runs is replayed after it, never dropped */
   isPending: boolean
+  /** ... and so is a new look for the modules asked with it */
+  isRediscoverPending: boolean
   /** Latest root read per module (full or light): a module opens at once from here */
   cache: Map<string, Root>
   found?: { base: string; inside?: string; paths: string[]; at: number }
@@ -41,7 +48,16 @@ async function sessionOf($: EngineInterface): Promise<Session> {
   const id = await $.session.id().catch(() => '')
   let one = sessions.get(id)
   if (!one) {
-    one = { lastSignature: '', isPending: false, cache: new Map(), hasOpened: false, nextPollAt: 0 }
+    one = {
+      signatures: new Map(),
+      reads: 0,
+      readAt: new Map(),
+      isPending: false,
+      isRediscoverPending: false,
+      cache: new Map(),
+      hasOpened: false,
+      nextPollAt: 0,
+    }
     sessions.set(id, one)
   }
   return one
@@ -115,13 +131,23 @@ async function select($: EngineInterface, s: Session, wanted: string) {
   if (selected !== ALL) void loadSelected($, s, selected)
 }
 
+// A module read afresh, kept only if no later read of it landed first
+async function readKept($: EngineInterface, s: Session, path: string, full: boolean) {
+  const n = ++s.reads
+  // A failing openspec comes back as the module's own error, shown in its view
+  const root = await readRoot($, path, full)
+  if (n < (s.readAt.get(path) ?? 0)) return undefined
+  s.readAt.set(path, n)
+  s.cache.set(path, root)
+  return root
+}
+
 async function loadSelected($: EngineInterface, s: Session, path: string) {
   try {
-    const root = await loadRoot($, path)
-    s.cache.set(path, root)
-    await update($, view, old => (old.selected === path ? { ...old, roots: [root] } : old))
+    const root = await readKept($, s, path, true)
+    if (root) await update($, view, old => (old.selected === path ? { ...old, roots: [root] } : old))
   } catch {
-    // The next refresh will say what went wrong
+    // The session went away mid-read: nothing left to draw
   }
 }
 
@@ -137,16 +163,20 @@ export function resolveModule(arg: string, paths: string[], base: string): strin
 }
 
 // Cheap fingerprint of the openspec/ trees, so openspec only runs when something moved
-async function signature($: EngineInterface, roots: string[]): Promise<string> {
+// Four levels: down to a change's specs/<capability>/spec.md, whose edit in place
+// moves no folder's time. The archive is not opened: archived changes no longer move,
+// and one archived or taken out moves the archive folder's own time
+async function signature($: EngineInterface, root: string): Promise<string> {
   const parts: string[] = []
   const walk = async (dir: string, depth: number) => {
     const entries = await $.fs.list(dir).catch(() => [])
     for (const entry of entries) {
       parts.push(`${dir}/${entry.name}:${entry.mtimeMs}`)
-      if (entry.kind === 'dir' && depth > 0) await walk(`${dir}/${entry.name}`, depth - 1)
+      const isArchive = entry.name === 'archive' && dir.endsWith('/openspec/changes')
+      if (entry.kind === 'dir' && depth > 0 && !isArchive) await walk(`${dir}/${entry.name}`, depth - 1)
     }
   }
-  for (const root of roots) await walk(`${root}/openspec`, 3)
+  await walk(`${root}/openspec`, 4)
   return parts.join('|')
 }
 
@@ -332,29 +362,56 @@ export function ownerOf(log: string, me: string): { isMine: boolean; owner?: str
   return { isMine: false, owner: name.trim() || email.trim() }
 }
 
-// The reader's git email, per repository; empty outside git or when unset
+// The reader's git email, per repository; empty outside git or when unset. Only an
+// email is kept: an empty answer is asked again, so one set later is picked up
 const emails = new Map<string, Promise<string>>()
 const myEmail = ($: EngineInterface, cwd: string) => {
   if (!emails.has(cwd)) {
-    emails.set(
-      cwd,
-      $.process
-        .run(['git', 'config', 'user.email'], { cwd })
-        .then(r => (r.exitCode === 0 ? r.stdout.trim() : ''))
-        .catch(() => ''),
-    )
+    const email = $.process
+      .run(['git', 'config', 'user.email'], { cwd })
+      .then(r => (r.exitCode === 0 ? r.stdout.trim() : ''))
+      .catch(() => '')
+    emails.set(cwd, email)
+    void email.then(found => {
+      if (found === '') emails.delete(cwd)
+    })
   }
   return emails.get(cwd)!
 }
 
+// A change folder's first commit, once it has one: who made it never changes, so git is
+// asked once per change. A folder not committed yet is asked again at its next read
+const firstCommits = new Map<string, string>()
 async function ownership($: EngineInterface, cwd: string, dir: string) {
   const me = await myEmail($, cwd)
   if (me === '') return { isMine: true }
-  const log = await $.process
-    .run(['git', 'log', '--reverse', '--format=%ae%x09%an', '--', dir], { cwd })
-    .catch(() => undefined)
-  if (!log || log.exitCode !== 0) return { isMine: true }
-  return ownerOf(log.stdout, me)
+  let first = firstCommits.get(dir)
+  if (first === undefined) {
+    const log = await $.process
+      .run(['git', 'log', '--reverse', '--format=%ae%x09%an', '--', dir], { cwd })
+      .catch(() => undefined)
+    if (!log || log.exitCode !== 0) return { isMine: true }
+    first = log.stdout.split('\n').find(line => line.trim() !== '') ?? ''
+    if (first !== '') firstCommits.set(dir, first)
+  }
+  return ownerOf(first, me)
+}
+
+// At most this many modules read at once, and as many changes within each: a monorepo's
+// modules, each running openspec and git per change, would otherwise start hundreds of
+// processes in one go
+const AT_ONCE = 4
+async function pool<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await work(items[i])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
 }
 
 // `full` false: just enough to know each change's turn, for a module seen in the overview
@@ -371,32 +428,30 @@ async function loadRoot($: EngineInterface, path: string, full = true): Promise<
     artifactsOf.set(one.changeName, artifactsFrom(one))
     specPathsOf.set(one.changeName, (one.artifactPaths?.specs?.existingOutputPaths ?? []).map((file: string) => absolute(path, file)))
   }
-  const changes: Change[] = await Promise.all(
-    (list.changes ?? []).map(async (one: any) => {
-      const changeRoot = `${path}/openspec/changes/${one.name}`
-      // A failed `openspec status` read as no documents put every change in review
-      const files = artifactsOf.has(one.name) ? undefined : await filesOf($, changeRoot)
-      const artifacts = artifactsOf.get(one.name) ?? files?.artifacts ?? []
-      const specPaths = specPathsOf.get(one.name) ?? files?.specPaths ?? []
-      const [markdown, digest, owned] = await Promise.all([
-        $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
-        full ? loadDigest($, changeRoot, specPaths) : { specs: [], decisions: [], openQuestions: [] },
-        ownership($, path, changeRoot),
-      ])
-      const { sections, open } = parseTasks(markdown)
-      const tasks = { done: one.completedTasks ?? 0, total: one.totalTasks ?? 0 }
-      return {
-        name: one.name,
-        tasks,
-        artifacts,
-        sections,
-        digest,
-        lastModified: one.lastModified,
-        ...owned,
-        ...whoseTurn(artifacts, tasks, open),
-      }
-    }),
-  )
+  const changes: Change[] = await pool(list.changes ?? [], AT_ONCE, async (one: any) => {
+    const changeRoot = `${path}/openspec/changes/${one.name}`
+    // A failed `openspec status` read as no documents put every change in review
+    const files = artifactsOf.has(one.name) ? undefined : await filesOf($, changeRoot)
+    const artifacts = artifactsOf.get(one.name) ?? files?.artifacts ?? []
+    const specPaths = specPathsOf.get(one.name) ?? files?.specPaths ?? []
+    const [markdown, digest, owned] = await Promise.all([
+      $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
+      full ? loadDigest($, changeRoot, specPaths) : { specs: [], decisions: [], openQuestions: [] },
+      ownership($, path, changeRoot),
+    ])
+    const { sections, open } = parseTasks(markdown)
+    const tasks = { done: one.completedTasks ?? 0, total: one.totalTasks ?? 0 }
+    return {
+      name: one.name,
+      tasks,
+      artifacts,
+      sections,
+      digest,
+      lastModified: one.lastModified,
+      ...owned,
+      ...whoseTurn(artifacts, tasks, open),
+    }
+  })
   // The reader's own changes first
   changes.sort((a, b) => Number(b.isMine) - Number(a.isMine))
   const archivedNames: string[] = (archived.changes ?? []).map((one: any) => one.name)
@@ -422,23 +477,43 @@ const summarize = (base: string, root: Root): Module => ({
   items: root.changes.map(c => ({
     name: c.name,
     step: steps(c).findIndex(s => s.state === 'current'),
+    steps: steps(c).length,
     turn: c.turn,
     isMine: c.isMine,
     owner: c.owner,
   })),
   lastModified: root.changes.map(c => c.lastModified ?? '').sort().pop() || undefined,
+  ...(root.error ? { error: root.error } : {}),
 })
+
+// A module whose openspec fails is shown failing on its own card or view: the others
+// still read. Only when every module fails does the error take the whole pane
+const readRoot = ($: EngineInterface, path: string, full = true): Promise<Root> =>
+  loadRoot($, path, full).catch(err => ({
+    name: path.split('/').pop() ?? path,
+    path,
+    changes: [],
+    specs: [],
+    archived: [],
+    archivedTotal: 0,
+    error: err instanceof Error ? err.message : String(err),
+  }))
 
 function refresh($: EngineInterface, s: Session, force = false, rediscover = false): Promise<void> {
   if (s.running) {
-    if (force) s.isPending = true
+    if (force) {
+      s.isPending = true
+      s.isRediscoverPending ||= rediscover
+    }
     return s.running
   }
   s.running = (async () => {
     await refreshOnce($, s, force, rediscover)
     while (s.isPending) {
+      const again = s.isRediscoverPending
       s.isPending = false
-      await refreshOnce($, s, true)
+      s.isRediscoverPending = false
+      await refreshOnce($, s, true, again)
     }
   })().finally(() => {
     s.running = undefined
@@ -466,20 +541,28 @@ async function refreshOnce($: EngineInterface, s: Session, force: boolean, redis
       }
     }
     const { base, paths } = current
-    const sig = await signature($, paths)
-    if (!force && sig === s.lastSignature) {
+    const wanted = (await read($, view)).selected
+    const selected = settle(wanted, paths)
+    // Read again only what may have moved: a module whose files did, one that failed, the
+    // selected one while only its light read is at hand; all of them when forced
+    const sigs = await pool(paths, AT_ONCE, p => signature($, p))
+    const stale = paths.filter((p, i) => {
+      const cached = s.cache.get(p)
+      return force || !cached || cached.error !== undefined || sigs[i] !== s.signatures.get(p) || (p === selected && cached.isLight)
+    })
+    paths.forEach((p, i) => s.signatures.set(p, sigs[i]))
+    if (stale.length === 0) {
       // Nothing moved: say when it was last checked
       await update($, view, old => ({ ...old, updatedAt: now, now }))
       return
     }
-    s.lastSignature = sig
-    const wanted = (await read($, view)).selected
-    const selected = settle(wanted, paths)
     // Every module is read light for the overview; the selected one in full
-    const light = await Promise.all(paths.map(p => (p === selected ? loadRoot($, p) : loadRoot($, p, false))))
-    for (const root of light) s.cache.set(root.path, root)
-    const modules = light.map(root => summarize(base, root))
-    const roots = light.filter(root => root.path === selected)
+    await pool(stale, AT_ONCE, p => readKept($, s, p, p === selected))
+    const all = paths.map(p => s.cache.get(p)).filter((root): root is Root => root !== undefined)
+    const failed = all.filter(root => root.error)
+    if (failed.length > 0 && failed.length === all.length) throw new Error(failed[0].error)
+    const modules = all.map(root => summarize(base, root))
+    const roots = all.filter(root => root.path === selected)
     // A module picked while this read keeps its pick: select() and loadSelected own its roots
     await update($, view, old =>
       old.selected === wanted
@@ -487,7 +570,7 @@ async function refreshOnce($: EngineInterface, s: Session, force: boolean, redis
         : { ...old, modules, updatedAt: now, now, error: undefined },
     )
   } catch (err) {
-    s.lastSignature = ''
+    s.signatures.clear()
     const message = err instanceof Error ? err.message : String(err)
     await update($, view, old => ({ ...old, error: message }))
   }
@@ -505,14 +588,14 @@ const WASH = '#88878010' // a light see-through grey behind frames and cards, on
 const TRACK = 'rgba(128,128,128,0.35)'
 const turnColor = (turn: Turn) => (turn === 'you' ? SAGE : CLAY)
 
-// The stepper in six dots, for a module's card: done grey, current in the actor's
-// colour, upcoming outlined
+// The stepper in dots, for a module's card, one per step (six with the spec-driven
+// documents): done grey, current in the actor's colour, upcoming outlined
 const DOT = 8
 const DOT_GAP = 3
-const DOTS_W = 6 * (DOT + DOT_GAP) - DOT_GAP
-export const dotsSvg = (current: number, currentFill: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${DOTS_W}" height="${DOT}" viewBox="0 0 ${DOTS_W} ${DOT}">` +
-  [0, 1, 2, 3, 4, 5]
+const dotsWidth = (total: number) => total * (DOT + DOT_GAP) - DOT_GAP
+export const dotsSvg = (current: number, total: number, currentFill: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${dotsWidth(total)}" height="${DOT}" viewBox="0 0 ${dotsWidth(total)} ${DOT}">` +
+  Array.from({ length: total }, (_, i) => i)
     .map(i => {
       const x = i * (DOT + DOT_GAP)
       if (i < current) return `<rect x="${x}" width="${DOT}" height="${DOT}" rx="2" fill="${MUTED}"/>`
@@ -559,8 +642,11 @@ const footer = (nextPollAt: number, updatedAt: number, now: number | undefined) 
   return `updated at ${clock(updatedAt)}${left === undefined ? '' : ` · refresh in ${left}s`}`
 }
 
-const ago = (iso: string, now: number) => {
-  const minutes = Math.max(0, Math.floor((now - Date.parse(iso)) / 60000))
+// "5m ago"; nothing for a date openspec wrote in a form that does not parse
+export const ago = (iso: string, now: number) => {
+  const at = Date.parse(iso)
+  if (!Number.isFinite(at)) return ''
+  const minutes = Math.max(0, Math.floor((now - at) / 60000))
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes}m ago`
   if (minutes < 60 * 24) return `${Math.floor(minutes / 60)}h ago`
@@ -667,23 +753,39 @@ const PHASE_LABEL = {
   implementing: 'Implementing',
   ready: 'Ready to archive',
 } as const
+// An openspec/ in the session's folder or at the repository top, where `openspec init` is run
+async function openspecAppeared($: EngineInterface, base: string) {
+  const cwd = await $.session.cwd()
+  for (const dir of new Set([cwd, base])) {
+    if (await $.fs.exists(`${dir}/openspec`)) return true
+  }
+  return false
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'spec-manager', description: 'Show the Spec Manager pane (OpenSpec changes)' })
     const s = await sessionOf($)
     void refresh($, s, true)
     s.nextPollAt = (await $.clock.now()) + POLL_MS
-    // The pane reads files only: it looks again every 10 seconds (and searches for new
-    // modules at once while it has none, so an `openspec init` shows up quickly)
+    // The pane reads files only: it looks again every 10 seconds. While it has no module,
+    // it looks only where `openspec init` is run, so one shows up quickly without walking
+    // a large repository's tree each time (the whole tree is walked again each minute)
     $.clock.every(POLL_MS, () => {
-      void refresh($, s, false, s.found?.paths.length === 0)
+      void (async () => refresh($, s, false, s.found?.paths.length === 0 && (await openspecAppeared($, s.found.base))))()
       void $.clock.now().then(now => {
         s.nextPollAt = now + POLL_MS
       })
     })
-    // Every second, move the clock the countdown and the "last activity" times read
+    // Every second, move the clock the countdown and the "last activity" times read: each
+    // move redraws the pane, so only while it is shown (on a host that cannot say, always)
     $.clock.every(1000, () => {
-      void $.clock.now().then(now => update($, view, old => ({ ...old, now })))
+      void (async () => {
+        const panes = await $.ui.panes().catch(() => undefined)
+        if (panes && !panes.some(pane => pane.id === PANE && pane.isShown)) return
+        const now = await $.clock.now()
+        await update($, view, old => ({ ...old, now }))
+      })().catch(() => undefined)
     })
 
     return next(e)
@@ -754,7 +856,12 @@ export const register: Register = on => {
       return (
         <Box flexDirection="column">
           <Text color="error">openspec: {error}</Text>
-          <Text dimColor>Check that `openspec` is on the PATH (~/.local/bin/openspec).</Text>
+          {/* Not found is a PATH matter; anything else is openspec's own answer, said above */}
+          {/ENOENT|not found|no such file/i.test(error) ? (
+            <Text dimColor>Check that `openspec` is on the PATH (~/.local/bin/openspec).</Text>
+          ) : (
+            <Text dimColor>openspec ran but failed in every module.</Text>
+          )}
         </Box>
       )
     }
@@ -768,6 +875,7 @@ export const register: Register = on => {
     // A module just opened from the overview's light read: what only the full read
     // brings (digest, specs, archives) says it is coming, never "none" or 0
     const isLight = roots.some(root => root.isLight)
+    const moduleError = roots.find(root => root.error)?.error
 
     const bar = (p: Progress) =>
       Svg && (
@@ -1094,7 +1202,8 @@ export const register: Register = on => {
       const byActivity = (a: Module, b: Module) => (b.lastModified ?? '').localeCompare(a.lastModified ?? '')
       const mine = modules.filter(m => m.mine > 0).sort((a, b) => rank(a) - rank(b) || byActivity(a, b))
       const others = modules.filter(m => m.mine === 0 && m.changes > 0).sort(byActivity)
-      const idle = modules.filter(m => m.changes === 0)
+      const idle = modules.filter(m => m.changes === 0 && !m.error)
+      const failing = modules.filter(m => m.error)
       const yours = modules.reduce((n, m) => n + m.you, 0)
       const ais = modules.reduce((n, m) => n + m.ai, 0)
       const caption = (label: string) => (
@@ -1117,17 +1226,17 @@ export const register: Register = on => {
           <Box flexShrink={0} marginLeft={1}>
             {Svg ? (
               <Svg
-                source={dotsSvg(line.step, line.isMine ? turnColor(line.turn) : MUTED)}
-                alt={`step ${line.step + 1} of 6`}
-                width={DOTS_W}
+                source={dotsSvg(line.step, line.steps, line.isMine ? turnColor(line.turn) : MUTED)}
+                alt={`step ${line.step + 1} of ${line.steps}`}
+                width={dotsWidth(line.steps)}
                 height={DOT}
               />
             ) : (
-              // The six steps: done, current in the actor's colour, to come
+              // One per step: done, current in the actor's colour, to come
               <Text>
                 <Text dimColor>{'●'.repeat(Math.max(0, line.step))}</Text>
                 <Text bold color={line.isMine ? turnColor(line.turn) : MUTED}>◉</Text>
-                <Text dimColor>{'○'.repeat(Math.max(0, 5 - line.step))}</Text>
+                <Text dimColor>{'○'.repeat(Math.max(0, line.steps - 1 - line.step))}</Text>
               </Text>
             )}
           </Box>
@@ -1176,15 +1285,22 @@ export const register: Register = on => {
       )
       // A module with nothing in progress needs no card: one line, still a way in
       const row = (m: Module) => (
-        <Box flexDirection="row" alignItems="center" marginTop={1}>
-          <Box flexGrow={1} flexShrink={1} minWidth={0}>
-            <Text dimColor wrap="truncate-end">
-              {m.name}
-            </Text>
+        <Box flexDirection="column" marginTop={1}>
+          <Box flexDirection="row" alignItems="center">
+            <Box flexGrow={1} flexShrink={1} minWidth={0}>
+              <Text dimColor wrap="truncate-end">
+                {m.name}
+              </Text>
+            </Box>
+            <Box flexShrink={0} marginLeft={1}>
+              <Button key={`open:${m.path}`} label="Open ›" variant="secondary" onPress={() => select($, session, m.path)} />
+            </Box>
           </Box>
-          <Box flexShrink={0} marginLeft={1}>
-            <Button key={`open:${m.path}`} label="Open ›" variant="secondary" onPress={() => select($, session, m.path)} />
-          </Box>
+          {m.error && (
+            <Box paddingLeft={2} minWidth={0}>
+              <Text color="error" wrap="truncate-end">openspec: {m.error}</Text>
+            </Box>
+          )}
         </Box>
       )
       return (
@@ -1199,6 +1315,8 @@ export const register: Register = on => {
               {others.map(m => card(m, true))}
               {idle.length > 0 && caption('NO ACTIVE CHANGE')}
               {idle.map(row)}
+              {failing.length > 0 && caption('OPENSPEC FAILED')}
+              {failing.map(row)}
             </>,
             false,
           )}
@@ -1240,7 +1358,8 @@ export const register: Register = on => {
         {frame(
           <>
             {heading('CHANGES', changes.length, changes.length > 0 && turnSummary(changes))}
-            {changes.length === 0 && none}
+            {moduleError && <Text color="error">openspec: {moduleError}</Text>}
+            {changes.length === 0 && !moduleError && none}
             {changes.map((change, i) => (
               <>
                 {i > 0 && rule}

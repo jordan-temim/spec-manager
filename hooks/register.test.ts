@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, artifactsFrom, artifactsFromFiles, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './register'
+import { absolute, ago, artifactsFrom, artifactsFromFiles, dotsSvg, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './register'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -76,6 +76,20 @@ describe('whose turn', () => {
     expect(turn.aiNext?.id).toBe('2.2')
   })
 
+  test('a task of the AI first in line is its turn, a user action later still waits on you', () => {
+    const open = [
+      { id: '2.2', text: 'Parse the response', isUserAction: false },
+      { id: '2.3', text: 'Add the key', isUserAction: true },
+      { id: '2.4', text: 'Retry', isUserAction: false },
+    ]
+    const turn = whoseTurn(ALL_WRITTEN, { done: 2, total: 5 }, open)
+    expect(turn.phase).toBe('implementing')
+    expect(turn.turn).toBe('ai')
+    expect(turn.aiNext?.id).toBe('2.2')
+    expect(turn.yourNext?.id).toBe('2.3')
+    expect(turn.yourLater).toBe(0)
+  })
+
   test('all tasks checked is ready to archive', () => {
     const turn = whoseTurn(ALL_WRITTEN, { done: 4, total: 4 }, [])
     expect(turn.phase).toBe('ready')
@@ -124,6 +138,16 @@ describe('stepper', () => {
   })
 })
 
+describe('card dots', () => {
+  test('one dot per step, whatever the schema gives', () => {
+    const dots = (svg: string) => (svg.match(/<rect /g) ?? []).length
+    expect(dots(dotsSvg(4, 6, '#d97757'))).toBe(6)
+    expect(dots(dotsSvg(1, 3, '#d97757'))).toBe(3)
+    // The current one filled with the actor's colour, at its place
+    expect(dotsSvg(1, 3, '#d97757').split('<rect ')[2]).toContain('fill="#d97757"')
+  })
+})
+
 describe('modules', () => {
   const base = '/repo'
   const paths = ['/repo', '/repo/packages/paiement', '/repo/packages/catalogue', '/repo/apps/web']
@@ -138,6 +162,15 @@ describe('modules', () => {
     expect(resolveModule('catalogue', paths, base)).toBe('/repo/packages/catalogue')
     expect(resolveModule('web/', paths, base)).toBe('/repo/apps/web')
     expect(resolveModule('paie', paths, base)).toBe('/repo/packages/paiement')
+  })
+
+  test('an exact name wins over one it starts, a fragment of several takes the first listed', () => {
+    const several = ['/repo/packages/pay-later', '/repo/packages/pay', '/repo/apps/payments']
+    // "pay" is a module's whole name, and the start of the two others'
+    expect(resolveModule('pay', several, base)).toBe('/repo/packages/pay')
+    // A fragment in several names: the first in the list, as /spec-manager shows them
+    expect(resolveModule('ay', several, base)).toBe('/repo/packages/pay-later')
+    expect(resolveModule('ment', several, base)).toBe('/repo/apps/payments')
   })
 
   test('"all" or nothing means the overview, an unknown name nothing', () => {
@@ -201,6 +234,10 @@ describe('skipped documents', () => {
     const artifacts = artifactsFrom(status)
     expect(artifacts.find(a => a.name === 'specs')).toEqual({ name: 'specs', isDone: true, isSkipped: true })
     expect(whoseTurn(artifacts, { done: 0, total: 14 }, []).phase).toBe('review')
+    // On the stepper: done, marked skipped, and the current step is past it
+    const stepper = steps({ artifacts, phase: 'review' } as Change)
+    expect(stepper.find(s => s.name === 'specs')).toEqual({ name: 'specs', state: 'done', isSkipped: true })
+    expect(stepper.find(s => s.state === 'current')?.name).toBe('apply')
   })
 
   test('without openspec status, the documents are read from the change folder', () => {
@@ -209,6 +246,12 @@ describe('skipped documents', () => {
     const turn = whoseTurn(artifacts, { done: 0, total: 0 }, [])
     expect(turn.phase).toBe('planning')
     expect(turn.aiNext?.text).toBe('write design')
+  })
+
+  test('without openspec status, a folder holding every document is a plan to review', () => {
+    const artifacts = artifactsFromFiles(['proposal.md', 'design.md', 'tasks.md', 'specs'], ['refunds'])
+    expect(artifacts.every(a => a.isDone)).toBe(true)
+    expect(whoseTurn(artifacts, { done: 0, total: 3 }, []).phase).toBe('review')
   })
 
   test('without a verdict from openspec, a document is done when its files exist', () => {
@@ -252,5 +295,15 @@ describe('spec paths from openspec', () => {
     expect(absolute('/repo/pay', 'openspec/changes/a/specs/x/spec.md')).toBe('/repo/pay/openspec/changes/a/specs/x/spec.md')
     expect(absolute('/repo/pay', './openspec/changes/a/specs/x/spec.md')).toBe('/repo/pay/openspec/changes/a/specs/x/spec.md')
     expect(absolute('/repo/pay', '/elsewhere/spec.md')).toBe('/elsewhere/spec.md')
+  })
+})
+
+describe('last activity', () => {
+  const now = Date.parse('2026-11-08T12:00:00Z')
+  test('says how long ago, and nothing for a date that does not parse', () => {
+    expect(ago('2026-11-08T11:55:00Z', now)).toBe('5m ago')
+    expect(ago('2026-11-06T12:00:00Z', now)).toBe('2d ago')
+    expect(ago('not a date', now)).toBe('')
+    expect(ago('', now)).toBe('')
   })
 })

@@ -61,13 +61,17 @@ export type Root = {
   archivedTotal: number
   /** Read for the overview only: no plan digest, specs or archives yet */
   isLight?: boolean
+  /** openspec failed in this module: nothing else of it could be read */
+  error?: string
 }
 
 /** One active change as its module's card shows it */
 export type ChangeLine = {
   name: string
-  /** Index of the current step among the six (proposal … archive) */
+  /** Index of the current step, and how many steps there are: six with the spec-driven
+   *  documents (proposal … archive), another count with another schema */
   step: number
+  steps: number
   turn: Turn
   isMine: boolean
   owner?: string
@@ -89,6 +93,8 @@ export type Module = {
   items: ChangeLine[]
   /** Most recent lastModified among its active changes */
   lastModified?: string
+  /** openspec failed in this module */
+  error?: string
 }
 
 export type View = {

@@ -26,7 +26,7 @@ ALLOWED_CALLS = {
     "$.session.cwd", "$.session.id",
     "$.state.get", "$.state.set",
     "$.store.get", "$.store.set",
-    "$.ui.open", "$.ui.resolve",
+    "$.ui.open", "$.ui.panes", "$.ui.resolve",
 }
 
 report = json.load(sys.stdin)

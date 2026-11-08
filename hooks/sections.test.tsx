@@ -18,7 +18,10 @@ const TASKS = `## 1. Data
 - [ ] 3.1 Refund button
 `
 
-const fakeRepo = (on: any) => {
+// The change's tasks.md; openspec's counts follow from it
+const fakeRepo = (on: any, tasks = TASKS) => {
+  const completedTasks = (tasks.match(/- \[x\]/g) ?? []).length
+  const totalTasks = (tasks.match(/- \[[ x]\]/g) ?? []).length
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
@@ -27,7 +30,7 @@ const fakeRepo = (on: any) => {
     value: (e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : [])
       .map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })),
   }))
-  on('fs.read', (_: unknown, e: { path: string }) => (e.path === `${CHANGE}/tasks.md` ? { value: TASKS } : { deny: 'ENOENT' }))
+  on('fs.read', (_: unknown, e: { path: string }) => (e.path === `${CHANGE}/tasks.md` ? { value: tasks } : { deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } })
@@ -36,7 +39,7 @@ const fakeRepo = (on: any) => {
     if (verb === 'status') return out(JSON.stringify({ changes: [{ changeName: 'add-refunds', artifactPaths: paths }] }))
     if (flag === '--specs') return out(JSON.stringify({ specs: [{ id: 'invoices', requirementCount: 4 }, { id: 'payouts', requirementCount: 2 }] }))
     if (flag === '--archived') return out(JSON.stringify({ changes: [{ name: 'add-invoices' }] }))
-    return out(JSON.stringify({ changes: [{ name: 'add-refunds', completedTasks: 2, totalTasks: 5, lastModified: '2026-10-15T10:00:00Z' }] }))
+    return out(JSON.stringify({ changes: [{ name: 'add-refunds', completedTasks, totalTasks, lastModified: '2026-10-15T10:00:00Z' }] }))
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
@@ -45,8 +48,8 @@ const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
 const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
 
 // The paiement module open on a surface, and whether a text is drawn on it
-const mount = async ($: any, on: any, surface: 'terminal' | 'desktop') => {
-  fakeRepo(on)
+const mount = async ($: any, on: any, surface: 'terminal' | 'desktop', tasks = TASKS) => {
+  fakeRepo(on, tasks)
   await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
   const shown = async (text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
@@ -98,6 +101,29 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/add-invoices/)).toBe(true)
     await ui.press({ key: 'block:specs' })
     expect(await shown(/payouts/)).toBe(false)
+    await ui.unmount()
+  })
+}
+
+// Which section opens by itself is the first one not done, whatever came before it.
+// (All done is ready to archive and none started a plan to review: neither lists sections)
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on the ${surface}, an untouched section after a done one is the one open`, async ($, on) => {
+    const tasks = '## 1. Data\n\n- [x] 1.1 Refunds table\n\n## 2. Provider\n\n- [ ] 2.1 Call the refund API\n- [ ] 2.2 Retry\n\n## 3. Screens\n\n- [ ] 3.1 Refund button\n'
+    const { ui, shown } = await mount($, on, surface, tasks)
+    expect(await shown(/◦ 2\.1/)).toBe(true)
+    expect(await shown(/◦ 2\.2/)).toBe(true)
+    expect(await shown(/✓ 1\.1/)).toBe(false)
+    expect(await shown(/◦ 3\.1/)).toBe(false)
+    await ui.unmount()
+  })
+
+  test(`on the ${surface}, a section left unfinished stays the open one when a later one is done`, async ($, on) => {
+    const tasks = '## 1. Data\n\n- [x] 1.1 Refunds table\n- [ ] 1.2 Index\n\n## 2. Provider\n\n- [x] 2.1 Call the refund API\n\n## 3. Screens\n\n- [ ] 3.1 Refund button\n'
+    const { ui, shown } = await mount($, on, surface, tasks)
+    expect(await shown(/◦ 1\.2/)).toBe(true)
+    expect(await shown(/✓ 2\.1/)).toBe(false)
+    expect(await shown(/◦ 3\.1/)).toBe(false)
     await ui.unmount()
   })
 }

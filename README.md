@@ -199,7 +199,7 @@ The same, as a privacy policy: [Privacy](PRIVACY.md).
 
 ## How it works
 
-- Finds the modules once a minute (every 10 seconds while it has found none); every 10 seconds it fingerprints their `openspec/` folders (names and modification times) and only runs `openspec` and `git` when something changed. The footer says when it last looked and counts down to the next look.
+- Finds the modules once a minute; while it has found none, it looks every 10 seconds only where `openspec init` is run (the session's folder and the repository top). Every 10 seconds it fingerprints each module's `openspec/` folder (names and modification times, down to a change's `specs/<capability>/spec.md`; the archive by its folder alone) and runs `openspec` only in a module whose files changed, or that failed; at most 4 modules, and 4 changes in each, at a time. Who made a change is asked of `git` once. A module whose `openspec` fails shows the error on its own card and view; the others still read. The footer says when it last looked and counts down to the next look, while the pane is shown.
 - The selected module is read in full (`openspec list`, `status`, `list --specs`, `list --archived`); the others light (`list`, `status`), enough for their cards.
 - Reads `tasks.md`, `proposal.md`, `design.md` and the change's specs by their structure: headings (`## 1. Section`, `### D1.`, `### Requirement:`, `#### Scenario:`), task lines (`- [ ]`), the first sentence under `## Why`, and the bullets under `## Open Questions`.
 - Ownership: `git log --reverse --format=%ae%x09%an -- <change folder>`, first line, against `git config user.email`.
