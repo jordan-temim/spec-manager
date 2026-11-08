@@ -88,6 +88,10 @@ describe('plan digest', () => {
     expect(whyLine('# Proposal\n\n## Why\n\nFirst `point`. Second point.\n\n## What Changes\n')).toBe('First point.')
   })
 
+  test('an empty Why gives no line, not the next section\'s', () => {
+    expect(whyLine('# Proposal\n\n## Why\n\n## What Changes\n\n- Add refunds\n')).toBe(undefined)
+  })
+
   test('reads decisions and the open questions', () => {
     const design = '## Decisions\n\n### D1. Layout\n\n### D2. Data\n\n## Open Questions\n\n- One?\n- Two?\n'
     expect(parseDesign(design)).toEqual({ decisions: ['D1 Layout', 'D2 Data'], openQuestions: ['One?', 'Two?'] })

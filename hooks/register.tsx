@@ -245,7 +245,8 @@ export function whoseTurn(
 
 // First sentence of the proposal's `## Why`
 export function whyLine(proposal: string): string | undefined {
-  const after = proposal.split(/^## Why\s*$/m)[1]
+  // Up to the next section only: an empty Why is no Why, not the first bullet of What Changes
+  const after = proposal.split(/^## Why\s*$/m)[1]?.split(/^#{1,2} /m)[0]
   const line = after?.split('\n').find(l => l.trim() !== '' && !l.startsWith('#'))
   if (!line) return undefined
   return line.trim().split(/(?<=[.!?])\s/)[0]?.replace(/[`*]/g, '')
