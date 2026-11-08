@@ -60,6 +60,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     // The section under way is open, done and upcoming ones closed
     expect(await shown(/Call the refund API/)).toBe(true)
     expect(await shown(/Retry on timeout/)).toBe(true)
+    // Its open tasks by their section marks: 2.2 and 2.3 also show, unmarked, under
+    // "Waiting on you" and "AI next", so their text alone cannot say the section is shut
+    expect(await shown(/● 2\.2/)).toBe(true)
+    expect(await shown(/◦ 2\.3/)).toBe(true)
     expect(await shown(/Refunds table/)).toBe(false)
     expect(await shown(/Refund button/)).toBe(false)
 
@@ -69,6 +73,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/Refunds table/)).toBe(true)
     await ui.press({ key: 'section:add-refunds:2' })
     expect(await shown(/Call the refund API/)).toBe(false)
+    expect(await shown(/● 2\.2/)).toBe(false)
+    expect(await shown(/◦ 2\.3/)).toBe(false)
     await ui.press({ key: 'section:add-refunds:3' })
     expect(await shown(/Refund button/)).toBe(false)
     await ui.unmount()
