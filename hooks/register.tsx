@@ -169,11 +169,15 @@ const openspecArchived = ($: EngineInterface, cwd: string) =>
 const USER_ACTION = /^\*\((?:action utilisateur|user action)[^)]*\)\*\s*/i
 
 // Sections (`## 1. Title`) with their checkbox counts, and the unchecked tasks in order
+// Windows line endings (CRLF) read as plain ones: `.` stops at a `\r`, so a line
+// ending in one matched no heading and no checkbox
+const unix = (text: string) => text.replace(/\r\n?/g, '\n')
+
 export function parseTasks(markdown: string): { sections: Section[]; open: Task[] } {
   const sections: Section[] = []
   const open: Task[] = []
   let section: Section | undefined
-  for (const line of markdown.split('\n')) {
+  for (const line of unix(markdown).split('\n')) {
     const heading = line.match(/^##\s+(\d+)\.\s+(.+)$/)
     if (heading) {
       section = { num: heading[1], title: heading[2].trim(), done: 0, total: 0, tasks: [] }
@@ -264,14 +268,15 @@ export function whoseTurn(
 // First sentence of the proposal's `## Why`
 export function whyLine(proposal: string): string | undefined {
   // Up to the next section only: an empty Why is no Why, not the first bullet of What Changes
-  const after = proposal.split(/^## Why\s*$/m)[1]?.split(/^#{1,2} /m)[0]
+  const after = unix(proposal).split(/^## Why\s*$/m)[1]?.split(/^#{1,2} /m)[0]
   const line = after?.split('\n').find(l => l.trim() !== '' && !l.startsWith('#'))
   if (!line) return undefined
   return line.trim().split(/(?<=[.!?])\s/)[0]?.replace(/[`*]/g, '')
 }
 
 // Decision titles (`### D1. Title`) and the bullets under `## Open Questions` of design.md
-export function parseDesign(design: string): { decisions: string[]; openQuestions: string[] } {
+export function parseDesign(markdown: string): { decisions: string[]; openQuestions: string[] } {
+  const design = unix(markdown)
   const decisions = [...design.matchAll(/^### (D\d+)\.\s+(.+)$/gm)].map(m => `${m[1]} ${m[2].replace(/[`*]/g, '').trim()}`)
   const section = design.split(/^## Open Questions\s*$/m)[1]?.split(/^## /m)[0] ?? ''
   const openQuestions = [...section.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.+)$/gm)]
@@ -283,7 +288,8 @@ export function parseDesign(design: string): { decisions: string[]; openQuestion
 // question. One that asks something ("None of them?") keeps its question mark
 const NO_QUESTION = /^(?:(?:none|n\/a|nothing|aucune?|néant|rien)\b[^?]*|[-–—]+)$/i
 
-export function specCounts(spec: string): { requirements: number; scenarios: number } {
+export function specCounts(markdown: string): { requirements: number; scenarios: number } {
+  const spec = unix(markdown)
   return {
     requirements: (spec.match(/^### Requirement:/gm) ?? []).length,
     scenarios: (spec.match(/^#### Scenario:/gm) ?? []).length,

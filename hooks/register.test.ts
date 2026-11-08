@@ -224,3 +224,18 @@ describe('tasks.md variants', () => {
     expect(open.map(t => t.id)).toEqual(['1.3'])
   })
 })
+
+describe('Windows line endings', () => {
+  const crlf = (text: string) => text.replace(/\n/g, '\r\n')
+
+  test('tasks.md in CRLF reads as in LF', () => {
+    expect(parseTasks(crlf(TASKS))).toEqual(parseTasks(TASKS))
+    expect(parseTasks(crlf(TASKS)).sections.length).toBe(2)
+  })
+
+  test('proposal, design and spec in CRLF read as in LF', () => {
+    expect(whyLine(crlf('## Why\n\nFirst point. Second.\n\n## What Changes\n'))).toBe('First point.')
+    expect(parseDesign(crlf('### D1. Layout\n\n## Open Questions\n\n- One?\n'))).toEqual({ decisions: ['D1 Layout'], openQuestions: ['One?'] })
+    expect(specCounts(crlf('### Requirement: A\n#### Scenario: B\n'))).toEqual({ requirements: 1, scenarios: 1 })
+  })
+})
