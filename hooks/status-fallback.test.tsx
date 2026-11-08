@@ -10,6 +10,12 @@ const DIRS: Record<string, [string, 'dir' | 'file'][]> = {
   [MODULE]: [['openspec', 'dir']],
   [CHANGE]: [['proposal.md', 'file'], ['specs', 'dir']],
   [`${CHANGE}/specs`]: [['refunds', 'dir']],
+  [`${CHANGE}/specs/refunds`]: [['spec.md', 'file']],
+}
+// What the listed files hold: fs.read agrees with fs.list and fs.exists
+const FILES: Record<string, string> = {
+  [`${CHANGE}/proposal.md`]: '# Proposal\n\n## Why\n\nRefunds are manual.\n',
+  [`${CHANGE}/specs/refunds/spec.md`]: '### Requirement: Refund\n#### Scenario: Full\n',
 }
 
 test('when openspec status fails, the steps come from the change folder', async ($, on) => {
@@ -25,7 +31,7 @@ test('when openspec status fails, the steps come from the change folder', async 
   on('fs.list', (_: unknown, e: { path: string }) => ({
     value: (DIRS[e.path] ?? []).map(([name, kind]) => ({ name, kind, size: 0, mtimeMs: 0, isLink: false })),
   }))
-  on('fs.read', () => ({ deny: 'ENOENT' }))
+  on('fs.read', (_: unknown, e: { path: string }) => (e.path in FILES ? { value: FILES[e.path] } : { deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'unknown command' : '' } })
