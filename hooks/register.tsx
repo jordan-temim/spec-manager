@@ -195,6 +195,28 @@ export function artifactsFrom(one: any): Artifact[] {
   })
 }
 
+// Without a word from `openspec status` (it failed, or does not know the change yet):
+// the spec-driven documents, each done when its file is in the change's folder
+export function artifactsFromFiles(names: string[], specDirs: string[]): Artifact[] {
+  return [
+    { name: 'proposal', isDone: names.includes('proposal.md') },
+    { name: 'specs', isDone: specDirs.length > 0 },
+    { name: 'design', isDone: names.includes('design.md') },
+    { name: 'tasks', isDone: names.includes('tasks.md') },
+  ]
+}
+
+async function filesOf($: EngineInterface, changeRoot: string) {
+  const names = (await $.fs.list(changeRoot).catch(() => [])).map(entry => entry.name)
+  const specDirs = names.includes('specs')
+    ? (await $.fs.list(`${changeRoot}/specs`).catch(() => [])).filter(entry => entry.kind === 'dir').map(entry => entry.name)
+    : []
+  return {
+    artifacts: artifactsFromFiles(names, specDirs),
+    specPaths: specDirs.map(dir => `${changeRoot}/specs/${dir}/spec.md`),
+  }
+}
+
 export function whoseTurn(
   artifacts: Artifact[],
   tasks: Progress,
@@ -313,15 +335,16 @@ async function loadRoot($: EngineInterface, path: string, full = true): Promise<
   const changes: Change[] = await Promise.all(
     (list.changes ?? []).map(async (one: any) => {
       const changeRoot = `${path}/openspec/changes/${one.name}`
+      // A failed `openspec status` read as no documents put every change in review
+      const files = artifactsOf.has(one.name) ? undefined : await filesOf($, changeRoot)
+      const artifacts = artifactsOf.get(one.name) ?? files?.artifacts ?? []
+      const specPaths = specPathsOf.get(one.name) ?? files?.specPaths ?? []
       const [markdown, digest, owned] = await Promise.all([
         $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
-        full
-          ? loadDigest($, changeRoot, specPathsOf.get(one.name) ?? [])
-          : { specs: [], decisions: [], openQuestions: [] },
+        full ? loadDigest($, changeRoot, specPaths) : { specs: [], decisions: [], openQuestions: [] },
         ownership($, path, changeRoot),
       ])
       const { sections, open } = parseTasks(markdown)
-      const artifacts = artifactsOf.get(one.name) ?? []
       const tasks = { done: one.completedTasks ?? 0, total: one.totalTasks ?? 0 }
       return {
         name: one.name,

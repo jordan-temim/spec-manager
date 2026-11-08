@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { artifactsFrom, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, steps, whoseTurn, whyLine } from './register'
+import { artifactsFrom, artifactsFromFiles, moduleName, ownerOf, parseDesign, parseTasks, resolveModule, settle, specCounts, steps, whoseTurn, whyLine } from './register'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -190,6 +190,14 @@ describe('skipped documents', () => {
     const artifacts = artifactsFrom(status)
     expect(artifacts.find(a => a.name === 'specs')).toEqual({ name: 'specs', isDone: true, isSkipped: true })
     expect(whoseTurn(artifacts, { done: 0, total: 14 }, []).phase).toBe('review')
+  })
+
+  test('without openspec status, the documents are read from the change folder', async () => {
+    const artifacts = artifactsFromFiles(['proposal.md', 'specs', '.openspec.yaml'], ['refunds'])
+    expect(artifacts.map(a => [a.name, a.isDone])).toEqual([['proposal', true], ['specs', true], ['design', false], ['tasks', false]])
+    const turn = whoseTurn(artifacts, { done: 0, total: 0 }, [])
+    expect(turn.phase).toBe('planning')
+    expect(turn.aiNext?.text).toBe('write design')
   })
 
   test('without a verdict from openspec, a document is done when its files exist', async () => {
