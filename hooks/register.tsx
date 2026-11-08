@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Artifact, Change, Module, Progress, Root, Section, Task, View } from '../types'
+import type { Artifact, Change, Module, Progress, Root, Section, Task, Turn, View } from '../types'
 
 const PANE = 'spec-manager'
 const TITLE = 'Spec Manager'
@@ -162,7 +162,7 @@ export function parseTasks(markdown: string): { sections: Section[]; open: Task[
       sections.push(section)
       continue
     }
-    const box = line.match(/^\s*- \[([ xX])\]\s+(.+)$/)
+    const box = line.match(/^\s*[-*] \[([ xX])\]\s+(.+)$/)
     if (!box) continue
     const isDone = box[1] !== ' '
     const [, id = '', rest = box[2]] = box[2].match(/^(\d+(?:\.\d+)*)\s+(.+)$/) ?? []
@@ -464,7 +464,7 @@ const SLATE = '#4f82c9' // progress: filled bars
 const MUTED = '#8f8d86' // done steps, labels of upcoming steps: only the current step is coloured
 const WASH = '#88878010' // a light see-through grey behind frames and cards, on the desktop
 const TRACK = 'rgba(128,128,128,0.35)'
-const turnColor = (turn: 'you' | 'ai') => (turn === 'you' ? SAGE : CLAY)
+const turnColor = (turn: Turn) => (turn === 'you' ? SAGE : CLAY)
 
 // The stepper in six dots, for a module's card: done grey, current in the actor's
 // colour, upcoming outlined
@@ -747,7 +747,7 @@ export const register: Register = on => {
       </Box>
     )
     // The same tag on each change and, counted, on the CHANGES heading
-    const turnTag = (turn: 'you' | 'ai', count?: number) => (
+    const turnTag = (turn: Turn, count?: number) => (
       <Text bold inverse color={turnColor(turn)}>
         {turn === 'you' ? ' YOU' : ' AI'}
         {count === undefined ? ' ' : ` ${count} `}

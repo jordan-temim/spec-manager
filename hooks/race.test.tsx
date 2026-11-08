@@ -3,16 +3,15 @@ import { expect, mock, test } from 'claude-code/testing'
 // /spec-manager <module> typed while the session's first look for modules is still
 // walking the tree: the command waits for it instead of finding nothing
 const MODULE = '/repo/packages/paiement'
-let release: () => void = () => undefined
-const walked = new Promise<void>(resolve => (release = resolve))
-
+// The walk below the repository top holds until `release`
 const fakeRepo = (on: any) => {
+  let release: () => void = () => undefined
+  const walked = new Promise<void>(resolve => (release = resolve))
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
   on('fs.exists', (_: unknown, e: { path: string }) => ({ value: ['/repo/.git', `${MODULE}/openspec`].includes(e.path) }))
   on('fs.list', async (_: unknown, e: { path: string }) => {
-    // The walk below the repository top holds until the test lets it go
     if (e.path === '/repo/packages') await walked
     const names = e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : []
     return { value: names.map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) }
@@ -26,10 +25,11 @@ const fakeRepo = (on: any) => {
   on('command.register', () => ({ value: undefined }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
+  return { release }
 }
 
 test('/spec-manager <module> during the first look for modules waits for it', async ($, on) => {
-  fakeRepo(on)
+  const { release } = fakeRepo(on)
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
   const answer = $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
   release()
@@ -80,11 +80,14 @@ test('a module picked during a refresh is not undone when the refresh ends', asy
   await clock.settle()
   // A fresh look for the modules, held while it reads paiement
   isArmed = true
-  await run('')
+  // Not awaited before the release: were the command to wait for the refresh, the
+  // test would fail on its answer instead of hanging
+  const reset = run('')
   await isReached
   isArmed = false
   await run('catalogue')
   release()
+  await reset
   await clock.settle()
 
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })

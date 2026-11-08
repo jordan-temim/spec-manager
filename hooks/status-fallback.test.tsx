@@ -16,7 +16,12 @@ test('when openspec status fails, the steps come from the change folder', async 
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
-  on('fs.exists', (_: unknown, e: { path: string }) => ({ value: ['/repo/.git', `${MODULE}/openspec`].includes(e.path) }))
+  // A path exists when it is a listed folder or an entry of one, as fs.list says
+  on('fs.exists', (_: unknown, e: { path: string }) => {
+    const parent = e.path.slice(0, e.path.lastIndexOf('/'))
+    const name = e.path.slice(e.path.lastIndexOf('/') + 1)
+    return { value: e.path in DIRS || (DIRS[parent] ?? []).some(([entry]) => entry === name) }
+  })
   on('fs.list', (_: unknown, e: { path: string }) => ({
     value: (DIRS[e.path] ?? []).map(([name, kind]) => ({ name, kind, size: 0, mtimeMs: 0, isLink: false })),
   }))

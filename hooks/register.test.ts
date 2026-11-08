@@ -23,7 +23,7 @@ const TASKS = `# Tasks
 const ALL_WRITTEN: Artifact[] = ['proposal', 'specs', 'design', 'tasks'].map(name => ({ name, isDone: true }))
 
 describe('tasks.md', () => {
-  test('counts and lists the tasks of each numbered section, skipping sections without any', async () => {
+  test('counts and lists the tasks of each numbered section, skipping sections without any', () => {
     const { sections } = parseTasks(TASKS)
     expect(sections).toEqual([
       {
@@ -43,7 +43,7 @@ describe('tasks.md', () => {
     ])
   })
 
-  test('lists open tasks in order and flags user actions', async () => {
+  test('lists open tasks in order and flags user actions', () => {
     const { open } = parseTasks(TASKS)
     expect(open).toEqual([
       { id: '2.1', text: 'Run the capture', isUserAction: true },
@@ -53,7 +53,7 @@ describe('tasks.md', () => {
 })
 
 describe('whose turn', () => {
-  test('a missing artifact is for the AI to write', async () => {
+  test('a missing artifact is for the AI to write', () => {
     const artifacts = [{ name: 'proposal', isDone: true }, { name: 'specs', isDone: false }]
     const turn = whoseTurn(artifacts, { done: 0, total: 0 }, [])
     expect(turn.phase).toBe('planning')
@@ -61,13 +61,13 @@ describe('whose turn', () => {
     expect(turn.aiNext?.text).toBe('write specs')
   })
 
-  test('a fresh plan waits for review', async () => {
+  test('a fresh plan waits for review', () => {
     const turn = whoseTurn(ALL_WRITTEN, { done: 0, total: 4 }, [])
     expect(turn.phase).toBe('review')
     expect(turn.turn).toBe('you')
   })
 
-  test('a user action first in line is your turn', async () => {
+  test('a user action first in line is your turn', () => {
     const { open } = parseTasks(TASKS)
     const turn = whoseTurn(ALL_WRITTEN, { done: 2, total: 4 }, open)
     expect(turn.phase).toBe('implementing')
@@ -76,7 +76,7 @@ describe('whose turn', () => {
     expect(turn.aiNext?.id).toBe('2.2')
   })
 
-  test('all tasks checked is ready to archive', async () => {
+  test('all tasks checked is ready to archive', () => {
     const turn = whoseTurn(ALL_WRITTEN, { done: 4, total: 4 }, [])
     expect(turn.phase).toBe('ready')
     expect(turn.turn).toBe('you')
@@ -84,23 +84,23 @@ describe('whose turn', () => {
 })
 
 describe('plan digest', () => {
-  test('reads the first sentence of Why', async () => {
+  test('reads the first sentence of Why', () => {
     expect(whyLine('# Proposal\n\n## Why\n\nFirst `point`. Second point.\n\n## What Changes\n')).toBe('First point.')
   })
 
-  test('reads decisions and the open questions', async () => {
+  test('reads decisions and the open questions', () => {
     const design = '## Decisions\n\n### D1. Layout\n\n### D2. Data\n\n## Open Questions\n\n- One?\n- Two?\n'
     expect(parseDesign(design)).toEqual({ decisions: ['D1 Layout', 'D2 Data'], openQuestions: ['One?', 'Two?'] })
   })
 
-  test('counts requirements and scenarios', async () => {
+  test('counts requirements and scenarios', () => {
     const spec = '### Requirement: A\n#### Scenario: a1\n#### Scenario: a2\n### Requirement: B\n#### Scenario: b1\n'
     expect(specCounts(spec)).toEqual({ requirements: 2, scenarios: 3 })
   })
 })
 
 describe('stepper', () => {
-  test('marks the first unfinished step as current', async () => {
+  test('marks the first unfinished step as current', () => {
     const change = { artifacts: ALL_WRITTEN, phase: 'implementing' } as Change
     expect(steps(change).map(s => `${s.name}:${s.state}`)).toEqual([
       'proposal:done',
@@ -117,19 +117,19 @@ describe('modules', () => {
   const base = '/repo'
   const paths = ['/repo', '/repo/packages/paiement', '/repo/packages/catalogue', '/repo/apps/web']
 
-  test('names a module by its path under the repo, the repo itself by its folder', async () => {
+  test('names a module by its path under the repo, the repo itself by its folder', () => {
     expect(moduleName(base, '/repo/packages/paiement')).toBe('packages/paiement')
     expect(moduleName(base, '/repo')).toBe('repo')
   })
 
-  test('/spec-manager <arg> finds a module by full name, last folder or part of it', async () => {
+  test('/spec-manager <arg> finds a module by full name, last folder or part of it', () => {
     expect(resolveModule('packages/paiement', paths, base)).toBe('/repo/packages/paiement')
     expect(resolveModule('catalogue', paths, base)).toBe('/repo/packages/catalogue')
     expect(resolveModule('web/', paths, base)).toBe('/repo/apps/web')
     expect(resolveModule('paie', paths, base)).toBe('/repo/packages/paiement')
   })
 
-  test('"all" or nothing means the overview, an unknown name nothing', async () => {
+  test('"all" or nothing means the overview, an unknown name nothing', () => {
     expect(resolveModule('all', paths, base)).toBe('all')
     expect(resolveModule('  ', paths, base)).toBe('all')
     expect(resolveModule('billing', paths, base)).toBe(undefined)
@@ -137,31 +137,31 @@ describe('modules', () => {
 })
 
 describe('ownership', () => {
-  test('a change is mine when I made its first commit, or when nobody committed it yet', async () => {
+  test('a change is mine when I made its first commit, or when nobody committed it yet', () => {
     expect(ownerOf('me@example.org\tMe\nmarie@example.org\tMarie\n', 'Me@Example.org')).toEqual({ isMine: true })
     expect(ownerOf('', 'me@example.org')).toEqual({ isMine: true })
   })
 
-  test("someone else's first commit makes it theirs, named after them", async () => {
+  test("someone else's first commit makes it theirs, named after them", () => {
     expect(ownerOf('marie@example.org\tMarie\nme@example.org\tMe\n', 'me@example.org')).toEqual({
       isMine: false,
       owner: 'Marie',
     })
   })
 
-  test('without a git identity, every change is mine', async () => {
+  test('without a git identity, every change is mine', () => {
     expect(ownerOf('marie@example.org\tMarie\n', '')).toEqual({ isMine: true })
   })
 })
 
 describe('selection', () => {
-  test('a single module is shown directly, even one that appeared after the overview was picked', async () => {
+  test('a single module is shown directly, even one that appeared after the overview was picked', () => {
     expect(settle('all', ['/repo'])).toBe('/repo')
     expect(settle(undefined, ['/repo'])).toBe('/repo')
     expect(settle('/gone', ['/repo'])).toBe('/repo')
   })
 
-  test('with several modules, keeps a known pick and falls back to the overview', async () => {
+  test('with several modules, keeps a known pick and falls back to the overview', () => {
     const paths = ['/repo/a', '/repo/b']
     expect(settle('/repo/b', paths)).toBe('/repo/b')
     expect(settle('all', paths)).toBe('all')
@@ -186,13 +186,13 @@ describe('skipped documents', () => {
     ],
   }
 
-  test('a skipped document counts as done, so the plan is complete', async () => {
+  test('a skipped document counts as done, so the plan is complete', () => {
     const artifacts = artifactsFrom(status)
     expect(artifacts.find(a => a.name === 'specs')).toEqual({ name: 'specs', isDone: true, isSkipped: true })
     expect(whoseTurn(artifacts, { done: 0, total: 14 }, []).phase).toBe('review')
   })
 
-  test('without openspec status, the documents are read from the change folder', async () => {
+  test('without openspec status, the documents are read from the change folder', () => {
     const artifacts = artifactsFromFiles(['proposal.md', 'specs', '.openspec.yaml'], ['refunds'])
     expect(artifacts.map(a => [a.name, a.isDone])).toEqual([['proposal', true], ['specs', true], ['design', false], ['tasks', false]])
     const turn = whoseTurn(artifacts, { done: 0, total: 0 }, [])
@@ -200,8 +200,16 @@ describe('skipped documents', () => {
     expect(turn.aiNext?.text).toBe('write design')
   })
 
-  test('without a verdict from openspec, a document is done when its files exist', async () => {
+  test('without a verdict from openspec, a document is done when its files exist', () => {
     const { artifacts: _, ...older } = status
     expect(artifactsFrom(older).find(a => a.name === 'specs')?.isDone).toBe(false)
+  })
+})
+
+describe('tasks.md variants', () => {
+  test('an upper-case X, a star bullet and an indented task all count', () => {
+    const { sections, open } = parseTasks('## 1. Mixed\n\n- [X] 1.1 Upper\n* [x] 1.2 Star\n  - [ ] 1.3 Indented\n')
+    expect(sections[0]).toMatchObject({ done: 2, total: 3 })
+    expect(open.map(t => t.id)).toEqual(['1.3'])
   })
 })

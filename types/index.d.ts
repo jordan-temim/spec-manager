@@ -3,11 +3,14 @@ export type Progress = { done: number; total: number }
 /** A planning document; a skipped one (`skip_specs: true`) counts as done */
 export type Artifact = { name: string; isDone: boolean; isSkipped?: boolean }
 
-/** An unchecked task of tasks.md */
+/** A task of tasks.md; where checked or not matters, the field holding it says so */
 export type Task = { id: string; text: string; isUserAction: boolean }
 
 /** A `## N. Title` section of tasks.md with its checkbox count and every task in it */
 export type Section = { num: string; title: string; tasks: (Task & { isDone: boolean })[] } & Progress
+
+/** Whose move it is: you (review, a user action, archive) or the AI */
+export type Turn = 'you' | 'ai'
 
 /** planning: an artifact is missing; review: all written, no task checked yet */
 export type Phase = 'planning' | 'review' | 'implementing' | 'ready'
@@ -31,11 +34,12 @@ export type Change = {
   digest: Digest
   phase: Phase
   /** Whose move it is, from the files alone: reviews are not tracked by OpenSpec */
-  turn: 'you' | 'ai'
+  turn: Turn
   /** Nearest unchecked user-action task, and how many more follow it */
   yourNext?: Task
   yourLater: number
-  /** What the AI can do next: a task, or a planning artifact to write */
+  /** What the AI can do next: the nearest unchecked task that is not a user action, or,
+   *  while planning, the document to write (`write <name>`, no id) */
   aiNext?: Task
   /** ISO date of the last change to the change's files */
   lastModified?: string
@@ -64,7 +68,7 @@ export type ChangeLine = {
   name: string
   /** Index of the current step among the six (proposal … archive) */
   step: number
-  turn: 'you' | 'ai'
+  turn: Turn
   isMine: boolean
   owner?: string
 }

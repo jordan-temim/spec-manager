@@ -44,12 +44,18 @@ const fakeRepo = (on: any) => {
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
 const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
 
+// The paiement module open on a surface, and whether a text is drawn on it
+const mount = async ($: any, on: any, surface: 'terminal' | 'desktop') => {
+  fakeRepo(on)
+  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
+  const shown = async (text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
+  return { ui, shown }
+}
+
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`on the ${surface}, the current section shows its tasks and a press opens or closes any section`, async ($, on) => {
-    fakeRepo(on)
-    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
-    const shown = async (text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
+    const { ui, shown } = await mount($, on, surface)
 
     // The section under way is open, done and upcoming ones closed
     expect(await shown(/Call the refund API/)).toBe(true)
@@ -71,14 +77,11 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`on the ${surface}, SPECS and ARCHIVED start closed and a press opens them`, async ($, on) => {
-    fakeRepo(on)
-    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
-    const shown = async (text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
+    const { ui, shown } = await mount($, on, surface)
 
     // Headings and counts only
-    expect(await shown(/SPECS/)).toBe(true)
-    expect(await shown(/ARCHIVED/)).toBe(true)
+    expect(await ui.find({ type: 'Box', text: /SPECS 2/ })).toBeDefined()
+    expect(await ui.find({ type: 'Box', text: /ARCHIVED 1/ })).toBeDefined()
     expect(await shown(/payouts/)).toBe(false)
     expect(await shown(/add-invoices/)).toBe(false)
 
