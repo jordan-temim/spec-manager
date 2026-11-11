@@ -6,7 +6,7 @@
   <a href="https://github.com/jordan-temim/spec-manager/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
 </p>
 <p align="center">
-  <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-2.1.293%2B-d97757" alt="Claude Code 2.1.293+" /></a>
+  <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-2.1.309%2B-d97757" alt="Claude Code 2.1.309+" /></a>
   <a href="https://github.com/Fission-AI/OpenSpec"><img src="https://img.shields.io/badge/for-OpenSpec-6b9b74" alt="For OpenSpec" /></a>
   <a href="#how-it-works"><img src="https://img.shields.io/badge/network-none-brightgreen" alt="No network" /></a>
 </p>
@@ -32,7 +32,7 @@ claude plugin install spec-manager@spec-manager --scope user
 
 or, inside a terminal Claude Code session, `/plugin install spec-manager --marketplace jordan-temim/spec-manager`. A plugin installed at user scope also loads in the desktop Code tab.
 
-Then start a new session in a project that has an `openspec/` folder: the pane opens by itself (elsewhere it stays closed until an `openspec/` folder appears), and `/spec-manager` reopens it. It needs Claude Code 2.1.293 or later and the `openspec` CLI (see [Requirements](#requirements)).
+Then start a new session in a project that has an `openspec/` folder: the pane opens by itself (elsewhere it stays closed until an `openspec/` folder appears), and `/spec-manager` reopens it. It needs Claude Code 2.1.309 or later and the `openspec` CLI (see [Requirements](#requirements)).
 
 ## What it looks like
 
@@ -123,7 +123,7 @@ Only the current step is coloured, and a slow light band sweeps across it (off w
 
 ## Requirements
 
-- Claude Code with plugin function hooks (2.1.293 or later). On an older version, `claude plugin list` shows the plugin as `failed to load` with `Hook load failed: … "hooks" … expected record`: run `claude update`.
+- Claude Code 2.1.309 or later: the hooks module is split in several files, which older versions do not follow. On an older version, `claude plugin list` shows the plugin as `failed to load` (before 2.1.293, `Hook load failed: … "hooks" … expected record`; up to 2.1.308, `$ is followed only into a function declared in this same file`): run `claude update`.
 - `git`, to tell your changes from other people's (optional).
 - The `openspec` CLI on the `PATH` of the process running Claude Code (the pane runs `openspec list` and `openspec status --json`).
   Installed with a Node version manager (mise, nvm…)? It sets the `PATH` in your interactive shell only, which the desktop app does not load: the pane then says `openspec` was not found. A small wrapper in `~/.local/bin/openspec` (a folder Claude Code's own install puts on the `PATH`) fixes that.
