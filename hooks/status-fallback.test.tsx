@@ -21,7 +21,8 @@ const FILES: Record<string, string> = {
 }
 
 // The repository above, its change folder holding `dirs` and `files`, openspec status failing
-const fakeRepo = (on: any, dirs = DIRS, files = FILES, totalTasks = 0) => {
+// `status`: what openspec status answers, when a test wants it to answer; failing otherwise
+const fakeRepo = (on: any, dirs = DIRS, files = FILES, totalTasks = 0, status?: unknown) => {
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
@@ -39,42 +40,88 @@ const fakeRepo = (on: any, dirs = DIRS, files = FILES, totalTasks = 0) => {
     const [cmd, verb, flag] = e.argv
     const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'unknown command' : '' } })
     if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : '')
-    if (verb === 'status') return out('', 1)
+    if (verb === 'status') return status === undefined ? out('', 1) : out(JSON.stringify(status))
     if (flag === '--specs' || flag === '--archived') return out(JSON.stringify({ specs: [], changes: [] }))
     return out(JSON.stringify({ changes: [{ name: 'add-refunds', completedTasks: 0, totalTasks }] }))
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
 
+// The change folder holding the whole plan: its design and its tasks beside the proposal
+const PLAN_DIRS = { ...DIRS, [CHANGE]: [...DIRS[CHANGE], ['design.md', 'file'], ['tasks.md', 'file']] as [string, 'dir' | 'file'][] }
+// ... and what those two hold: a decision, two tasks not started
+const PLAN_FILES = {
+  ...FILES,
+  [`${CHANGE}/design.md`]: '## Decisions\n\n### D1. Provider API\n',
+  [`${CHANGE}/tasks.md`]: '## 1. Data\n\n- [ ] 1.1 Refunds table\n- [ ] 1.2 Index\n',
+}
+// What openspec status says of a change whose every document is done, `specs` its specs' paths
+// (left out of artifactPaths when undefined)
+const allDone = (specs?: string[]) => ({
+  changes: [
+    {
+      changeName: 'add-refunds',
+      artifacts: ['proposal', 'specs', 'design', 'tasks'].map(id => ({ id, status: 'done' })),
+      artifactPaths: {
+        ...Object.fromEntries(['proposal', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${CHANGE}/${n}.md`] }])),
+        ...(specs ? { specs: { existingOutputPaths: specs } } : {}),
+      },
+    },
+  ],
+})
+// paiement opened, `check` run on its pane on a surface, unmounted whatever the check found
+const withPane = async ($: any, surface: 'terminal' | 'desktop', check: (ui: any) => Promise<void>) => {
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+  try {
+    await check(ui)
+  } finally {
+    await ui.unmount()
+  }
+}
+const open = ($: any) => $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+
 test('when openspec status fails, the steps come from the change folder', async ($, on) => {
   fakeRepo(on)
-  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+  await open($)
   for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
-    expect(await ui.find({ type: 'Text', text: /write design/ })).toBeDefined()
-    // specs/refunds/spec.md is there: the specs step is done (the terminal draws it as text)
-    if (surface === 'terminal') {
-      expect(await ui.find({ type: 'Text', text: /✓ specs/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /◐ design/ })).toBeDefined()
-    }
-    expect(await ui.find({ type: 'Text', text: /Review the plan/ })).toBe(undefined)
-    await ui.unmount()
+    await withPane($, surface, async ui => {
+      expect(await ui.find({ type: 'Text', text: /write design/ })).toBeDefined()
+      // specs/refunds/spec.md is there: the specs step is done (the terminal draws it as text)
+      if (surface === 'terminal') {
+        expect(await ui.find({ type: 'Text', text: /✓ specs/ })).toBeDefined()
+        expect(await ui.find({ type: 'Text', text: /◐ design/ })).toBeDefined()
+      }
+      expect(await ui.find({ type: 'Text', text: /Review the plan/ })).toBe(undefined)
+    })
   }
 })
 
 test('when openspec status fails, a folder holding the whole plan is a plan to review', async ($, on) => {
-  const dirs = { ...DIRS, [CHANGE]: [...DIRS[CHANGE], ['design.md', 'file'], ['tasks.md', 'file']] as [string, 'dir' | 'file'][] }
-  const files = {
-    ...FILES,
-    [`${CHANGE}/design.md`]: '## Decisions\n\n### D1. Provider API\n',
-    [`${CHANGE}/tasks.md`]: '## 1. Data\n\n- [ ] 1.1 Refunds table\n- [ ] 1.2 Index\n',
-  }
-  fakeRepo(on, dirs, files, 2)
-  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+  fakeRepo(on, PLAN_DIRS, PLAN_FILES, 2)
+  await open($)
   for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
-    expect(await ui.find({ type: 'Text', text: /Review the plan/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /write design|write tasks/ })).toBe(undefined)
-    await ui.unmount()
+    await withPane($, surface, async ui => {
+      expect(await ui.find({ type: 'Text', text: /Review the plan/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /write design|write tasks/ })).toBe(undefined)
+    })
   }
+})
+
+test('openspec status naming no spec paths: the plan digest reads them from the change folder', async ($, on) => {
+  fakeRepo(on, PLAN_DIRS, PLAN_FILES, 2, allDone())
+  await open($)
+  await withPane($, 'desktop', async ui => {
+    // A plan to review, its digest naming the spec found in specs/refunds/spec.md
+    expect(await ui.find({ type: 'Text', text: /Review the plan/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /refunds/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /1 req · 1 scen/ })).toBeDefined()
+  })
+})
+
+test('openspec status giving an empty list of spec paths: the change folder is read all the same', async ($, on) => {
+  fakeRepo(on, PLAN_DIRS, PLAN_FILES, 2, allDone([]))
+  await open($)
+  await withPane($, 'desktop', async ui => {
+    expect(await ui.find({ type: 'Text', text: /1 req · 1 scen/ })).toBeDefined()
+  })
 })

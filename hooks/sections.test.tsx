@@ -44,6 +44,8 @@ const fakeRepo = (on: any, tasks = TASKS) => {
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
 
+// A section's chevron: the module's path, the change, the section's number
+const sectionKey = (num: number) => `section:${MODULE}:add-refunds:${num}`
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
 const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
 
@@ -70,15 +72,23 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/Refunds table/)).toBe(false)
     expect(await shown(/Refund button/)).toBe(false)
 
-    await ui.press({ key: 'section:add-refunds:3' })
+    await ui.press({ key: sectionKey(3) })
     expect(await shown(/Refund button/)).toBe(true)
-    await ui.press({ key: 'section:add-refunds:1' })
+    await ui.press({ key: sectionKey(1) })
     expect(await shown(/Refunds table/)).toBe(true)
-    await ui.press({ key: 'section:add-refunds:2' })
+    // A done task reads with its ✓: the checks for its absence elsewhere mean something
+    expect(await shown(/✓ 1\.1/)).toBe(true)
+    // Not an accordion: opening one leaves the others as they were
+    expect(await shown(/Refund button/)).toBe(true)
+    // ... and a press closes any of them, a done one included
+    await ui.press({ key: sectionKey(1) })
+    expect(await shown(/Refunds table/)).toBe(false)
+    expect(await shown(/Refund button/)).toBe(true)
+    await ui.press({ key: sectionKey(2) })
     expect(await shown(/Call the refund API/)).toBe(false)
     expect(await shown(/● 2\.2/)).toBe(false)
     expect(await shown(/◦ 2\.3/)).toBe(false)
-    await ui.press({ key: 'section:add-refunds:3' })
+    await ui.press({ key: sectionKey(3) })
     expect(await shown(/Refund button/)).toBe(false)
     await ui.unmount()
   })
@@ -99,6 +109,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/add-invoices/)).toBe(false)
     await ui.press({ key: 'block:archived' })
     expect(await shown(/add-invoices/)).toBe(true)
+    // Each block on its own: SPECS stays open
+    expect(await shown(/payouts/)).toBe(true)
     await ui.press({ key: 'block:specs' })
     expect(await shown(/payouts/)).toBe(false)
     await ui.unmount()
@@ -115,6 +127,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/◦ 2\.2/)).toBe(true)
     expect(await shown(/✓ 1\.1/)).toBe(false)
     expect(await shown(/◦ 3\.1/)).toBe(false)
+    // The done section opened by hand shows its task, marked done
+    await ui.press({ key: sectionKey(1) })
+    expect(await shown(/✓ 1\.1/)).toBe(true)
     await ui.unmount()
   })
 
@@ -124,6 +139,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/◦ 1\.2/)).toBe(true)
     expect(await shown(/✓ 2\.1/)).toBe(false)
     expect(await shown(/◦ 3\.1/)).toBe(false)
+    await ui.press({ key: sectionKey(2) })
+    expect(await shown(/✓ 2\.1/)).toBe(true)
     await ui.unmount()
   })
 }

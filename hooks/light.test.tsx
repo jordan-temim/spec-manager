@@ -48,14 +48,17 @@ test('a module opened from the overview shows its specs and archives as loading 
   await clock.settle()
   await run('paiement')
   let ui = await pane()
-  expect(await ui.find({ type: 'Text', text: /pay-v2/ })).toBeDefined()
-  expect(await ui.find({ type: 'Box', text: /SPECS …/ })).toBeDefined()
-  expect(await ui.find({ type: 'Box', text: /ARCHIVED …/ })).toBeDefined()
-  // Anywhere in the pane, whatever element would draw it
-  expect(await ui.find({ type: 'Box', text: /\(none\)/ })).toBe(undefined)
-  await ui.unmount()
-
-  release()
+  // The held reads are let go whatever happens here, so a failure reads as itself
+  try {
+    expect(await ui.find({ type: 'Text', text: /pay-v2/ })).toBeDefined()
+    expect(await ui.find({ type: 'Box', text: /SPECS …/ })).toBeDefined()
+    expect(await ui.find({ type: 'Box', text: /ARCHIVED …/ })).toBeDefined()
+    // Anywhere in the pane, whatever element would draw it
+    expect(await ui.find({ type: 'Box', text: /\(none\)/ })).toBe(undefined)
+    await ui.unmount()
+  } finally {
+    release()
+  }
   await clock.settle()
   ui = await pane()
   expect(await ui.find({ type: 'Box', text: /SPECS 1/ })).toBeDefined()

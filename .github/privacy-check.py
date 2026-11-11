@@ -1,7 +1,7 @@
 """Fail if the plugin listens to, or calls, anything beyond what it needs.
 
 Reads `claude plugin validate . --json` on stdin. Spec Manager must hook only its
-session start, its own command and the drawing of its pane, and call only the
+session start and end, its own command and the drawing of its pane, and call only the
 clock, files, openspec/git, the session's folder and id (to keep each session's
 state apart), its own state and store, and its pane: nothing that
 reaches the conversation (messages, prompts, answers, tool calls, the model) or
@@ -14,7 +14,7 @@ import re
 import sys
 
 ALLOWED_HOOKS = {
-    "session.start",
+    "session.start", "session.end",
     "command.run{command=spec-manager}",
     "ui.render{component=Pane, requestId=spec-manager}",
 }
@@ -37,7 +37,10 @@ def items_of(body):
     # "$.fs.read (via a, b), $.ui.open" -> ["$.fs.read", "$.ui.open"]; keep {...} matchers whole
     items, depth, current = [], 0, ""
     for ch in body:
-        depth += ch in "{(" and 1 or ch in "})" and -1 or 0
+        if ch in "{(":
+            depth += 1
+        elif ch in "})":
+            depth -= 1
         if ch == "," and depth == 0:
             items.append(current.strip())
             current = ""
@@ -50,12 +53,17 @@ def items_of(body):
 def listed(kind):
     # One line per hooks module, "<module> hooks: ..." and "<module> calls: ...": every
     # module's lines count, and a note merely mentioning the word does not
-    pattern = re.compile(r"^(\S+) " + kind + r": (.*)$")
+    # A module's line starts with its path (./register.tsx); that path may hold spaces, and a
+    # long list may wrap. A module's note that names the kind but does not read as one is
+    # an error, never skipped: its hooks or calls would go unchecked
+    pattern = re.compile(r"^(\./.+?) " + kind + r": (.*)$", re.S)
     found = {}
     for note in notes:
         m = pattern.match(note)
         if m:
-            found.setdefault(m.group(1), set()).update(items_of(m.group(2)))
+            found.setdefault(m.group(1), set()).update(items_of(" ".join(m.group(2).split())))
+        elif note.startswith("./") and f" {kind}:" in note:
+            sys.exit(f"privacy check: a module's '{kind}:' note does not read as one: {note[:120]}")
     if not found:
         sys.exit(f"privacy check: no '{kind}:' line in the validator report")
     return found

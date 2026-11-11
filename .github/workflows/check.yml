@@ -27,6 +27,8 @@ jobs:
       - run: claude plugin validate . --json | python3 .github/privacy-check.py
         env:
           DISABLE_AUTOUPDATER: 1
+      # The check's own reading of the report, on sample reports
+      - run: python3 .github/privacy-check-test.py
       - run: claude plugin test .
         env:
           DISABLE_AUTOUPDATER: 1

@@ -52,7 +52,6 @@ export type Change = {
 export type Spec = { id: string; requirements: number }
 
 export type Root = {
-  name: string
   path: string
   changes: Change[]
   specs: Spec[]

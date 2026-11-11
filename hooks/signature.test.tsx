@@ -1,5 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
+import { POLL_MS } from './load'
+
 // A change's spec edited in place moves no folder's time: the pane sees it anyway
 const MODULE = '/repo/packages/paiement'
 const CHANGE = `${MODULE}/openspec/changes/add-refunds`
@@ -64,7 +66,7 @@ test('a spec edited in place shows its new counts at the next poll', async ($, o
   // Edited in place: a requirement more, the folders' times unchanged
   files[SPEC] += '### Requirement: Partial refund\n#### Scenario: Two items\n#### Scenario: One item\n'
   mtime[SPEC] = 2
-  await clock.advance(10000)
+  await clock.advance(POLL_MS)
   await clock.settle()
   expect(await counts()).toContain('2 req · 3 scen')
 

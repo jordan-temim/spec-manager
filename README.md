@@ -112,9 +112,9 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 
 | Colour | Means | Where |
 | --- | --- | --- |
-| Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it |
-| Sage `#6b9b74` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
-| Slate blue `#4f82c9` | progress | filled bars; a card's frame under the pointer |
+| Violet `#8b5cf6` | the AI, and the wordmark | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it; the logo |
+| Amber `#d97706` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
+| Teal `#12a594` | progress | filled bars; a card's frame under the pointer |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |
 | See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |
@@ -191,7 +191,7 @@ What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
 **What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 
-**What it watches in the session:** nothing from the conversation. Two checks keep it so on every push: `.github/privacy-check.py` fails if the plugin hooks or calls anything beyond its list (no prompts, answers, tool calls, model or network), and `hooks/privacy.test.tsx` runs a whole session and fails if the plugin reads a file other than an OpenSpec document or runs anything but read-only `openspec` and `git`. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. Of the session it asks only its folder, to find the repository, and its id, to keep each session's state apart. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
+**What it watches in the session:** nothing from the conversation. Two checks keep it so on every push: `.github/privacy-check.py` fails if the plugin hooks or calls anything beyond its list (no prompts, answers, tool calls, model or network), and `hooks/privacy.test.tsx` runs a whole session and fails if the plugin reads a file other than an OpenSpec document or runs anything but read-only `openspec` and `git`. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. Of the session it asks only its folder, to find the repository, and its id, to keep each session's state apart. A `session.end` hook hands the pane's state on across a `/clear` or a resume, and drops it when the session exits. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
 
 **What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
@@ -216,7 +216,9 @@ claude plugin test .
 
 A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pull request, fails when the plugin code changes without a higher `version` in `plugin.json` (`claude plugin update` would skip such a release), tags each released version (`v0.1.0`, …) and publishes a GitHub release for it, titled and described by the release commit.
 
-`hooks/register.tsx` is the whole mod; `types/index.d.ts` declares the state it keeps. `hooks/register.test.ts` covers the parsing and the rules (who does the next step, ownership, module lookup); `hooks/overview.test.tsx` draws the pane on the terminal and the desktop against a fake two-module repository and clicks through it.
+The mod is five files under `hooks/`: `register.tsx`, the hooks (session start and end, `/spec-manager`, the pane); `model.ts`, what the OpenSpec files say (parsing, phase and steps, module names), with no `$`; `load.ts`, reading the repository (modules, `openspec` and `git`, sessions, the refresh); `svg.ts`, the palette and the SVG drawings; `pane.tsx`, the pane itself. `types/index.d.ts` declares the state it keeps. Two rules of the validator shape the split: a function given `$` in another file is a `function` declaration, so the scan follows it there (and the privacy check sees its calls); a file that reads or writes state declares the atom in its own consts.
+
+`hooks/model.test.ts` covers the parsing and the rules (who does the next step, ownership, module lookup), `svg.test.ts` and `pane.test.ts` the drawings' small parts; the `*.test.tsx` files draw the pane on the terminal and the desktop against fake repositories and click through it.
 
 ## Security
 

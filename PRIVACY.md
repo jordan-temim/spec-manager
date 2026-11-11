@@ -6,7 +6,7 @@ Spec Manager runs on your machine. The plugin itself makes no network request an
 
 - The files under each `openspec/` folder of the project you open in Claude Code: `tasks.md`, `proposal.md`, `design.md` and the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md, plus folder names and modification times.
 - Through `git log`, the **name and email** of the author of each OpenSpec change folder's first commit, and through `git config user.email`, **your own git email**, in order to tell your changes from other people's and show the author's name in its pane. The plugin itself does not send them anywhere and does not write them into the conversation.
-- Nothing from the conversation: it reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. Everything it shows comes from the files above and from git. Of the session it asks only its folder, to find the repository, and its id, to keep each session's state apart.
+- Nothing from the conversation: it reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. Everything it shows comes from the files above and from git. Of the session it asks only its folder, to find the repository, and its id, to keep each session's state apart; that a session ended (and why: exit, /clear, resume) is all it hears of its end.
 
 The pane is part of Claude Code's interface, and how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 

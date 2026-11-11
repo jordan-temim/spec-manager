@@ -69,7 +69,6 @@ const props = { title: 'OpenSpec', isFocused: false, bodyColumns: 60, placement:
 
 test('at the repo top, the overview lists both modules and a press opens one', async ($, on) => {
   fakeRepo(on)
-  await runCommand($, 'all')
   for (const surface of ['terminal', 'desktop'] as const) {
     await runCommand($, 'all')
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
@@ -110,6 +109,7 @@ test('the terminal draws the stepper as text', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'terminal', ...PANE, props })
   expect(await ui.find({ type: 'Text', text: /✓ proposal/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /◐ apply/ })).toBeDefined()
+  await ui.unmount()
 })
 
 test('on the terminal, the rule between changes fits the frame', async ($, on) => {
@@ -121,6 +121,7 @@ test('on the terminal, the rule between changes fits the frame', async ($, on) =
   const rule = await ui.find({ type: 'Text', text: /^─+$/ })
   expect(rule).toBeDefined()
   expect(JSON.stringify(rule).match(/─+/)![0].length).toBeLessThanOrEqual(props.bodyColumns - 4)
+  await ui.unmount()
 })
 
 test('the pane says what the two tags mean, on both surfaces', async ($, on) => {
@@ -129,6 +130,7 @@ test('the pane says what the two tags mean, on both surfaces', async ($, on) => 
     await runCommand($, 'paiement')
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
     expect(await ui.find({ type: 'Text', text: /AI builds · YOU act/ })).toBeDefined()
+    await ui.unmount()
   }
 })
 
@@ -140,5 +142,7 @@ test('a change of another schema gets as many dots as it has steps', async ($, o
   // archive; drawn ● ◉ ○ on the terminal, not six as the spec-driven ones
   const dots = await ui.find({ type: 'Text', text: /^●◉○$/ })
   expect(dots).toBeDefined()
+  // paiement's spec-driven change, beside it, keeps its six (applying: four done)
+  expect(await ui.find({ type: 'Text', text: /^●●●●◉○$/ })).toBeDefined()
   await ui.unmount()
 })
