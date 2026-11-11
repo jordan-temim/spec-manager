@@ -144,3 +144,15 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 }
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on the ${surface}, a section's marks: your actions in blue, the AI's in terracotta, done ones grey`, async ($, on) => {
+    const { ui } = await mount($, on, surface)
+    await ui.press({ key: sectionKey(1) })
+    const colorOf = async (text: RegExp) => ((await ui.find({ type: 'Text', text })) as any)?.props?.color
+    expect(await colorOf(/● 2\.2/)).toBe('#378ADD')
+    expect(await colorOf(/◦ 2\.3/)).toBe('#d97757')
+    expect(await colorOf(/✓ 1\.1/)).toBe('#8f8d86')
+    await ui.unmount()
+  })
+}

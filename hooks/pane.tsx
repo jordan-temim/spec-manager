@@ -281,7 +281,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                 s.tasks.map(t => (
                   <Box flexDirection="row" paddingLeft={2}>
                     <Box flexShrink={0}>
-                      <Text color={t.isDone ? MUTED : t.isUserAction ? (change.isMine ? BLUE : MUTED) : undefined}>
+                      <Text color={t.isDone || !change.isMine ? MUTED : t.isUserAction ? BLUE : CLAY}>
                         {t.isDone ? '✓' : t.isUserAction ? '●' : '◦'}{' '}
                         {t.id ? `${t.id} ` : ''}
                       </Text>
