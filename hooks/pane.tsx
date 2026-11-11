@@ -5,7 +5,7 @@ import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { ALL, isNotInstalled, settle, steps } from './model'
 import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
-import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, MUTED, RULE_SVG, TAB_H, TEAL, VIOLET, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
+import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, MUTED, RULE_SVG, TAB_H, VIOLET, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
 import type { Change, Module, Progress, Task, Turn, View } from '../types'
 
 // The same state as load.ts's: the state scan reads the atoms a file writes in its own consts
@@ -62,8 +62,12 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         <Svg source={brandSvg()} alt="Spec Manager" width={BRAND_W} height={BRAND_H} />
       ) : (
         <Text>
-          <Text color={VIOLET}>●─●─○ </Text>
-          <Text bold color={VIOLET}>spec</Text>
+          <Text color={MUTED}>●</Text>
+          <Text dimColor>─</Text>
+          <Text color={CLAY}>●</Text>
+          <Text dimColor>─</Text>
+          <Text color={BLUE}>○ </Text>
+          <Text bold color={CLAY}>spec</Text>
           <Text> manager</Text>
         </Text>
       )}
@@ -508,7 +512,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         borderColor={MUTED}
         borderDimColor={isOthers}
         backgroundColor={Svg ? WASH : undefined}
-        hover={{ borderColor: TEAL, borderDimColor: false }}
+        hover={{ borderColor: VIOLET, borderDimColor: false }}
         paddingX={1}
         marginTop={air(1)}
         overflow="hidden"

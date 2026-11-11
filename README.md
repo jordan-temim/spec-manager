@@ -114,11 +114,12 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 | --- | --- | --- |
 | Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it |
 | Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
-| Teal `#12a594` | progress | filled bars; a card's frame under the pointer |
-| Violet `#8b5cf6` | the brand | the logo, nothing else |
+| Violet `#8b5cf6` | progress | filled bars; a card's frame under the pointer |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |
 | See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |
+
+The logo tells the same story: a step done in grey, one the AI took in terracotta, the one waiting on you in blue.
 
 Only the current step is coloured, and a slow light band sweeps across it (off when the system asks for reduced motion).
 

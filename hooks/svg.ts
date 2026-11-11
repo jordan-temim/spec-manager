@@ -6,14 +6,13 @@ import type { Change, Progress, Turn } from '../types'
 export const BAR_W = 60
 export const BAR_H = 6
 // Palette, shared with live-review: terracotta for the AI (Claude's colour), blue for you
-// (as Claude's own design system splits them), teal for progress, violet for the brand
-// alone (the wordmark). A warm and a cool actor, told apart at a glance; mid tones,
-// readable on both the light and the dark theme
+// (as Claude's own design system splits them), violet for progress. A warm and a cool
+// actor told apart at a glance, and a third hue far from both; mid tones, readable on
+// both the light and the dark theme
 export const CLAY = '#d97757' // the AI: Claude's terracotta
 export const BLUE = '#378ADD' // you
-export const TEAL = '#12a594' // progress: filled bars
-export const VIOLET = '#8b5cf6' // the brand: the wordmark, nothing else in the pane
-export const VIOLET_LINE = '#a78bfa' // the wordmark's thread between its steps
+export const VIOLET = '#8b5cf6' // progress: filled bars, a card's frame under the pointer
+export const THREAD = '#b4b2a9' // the wordmark's thread between its steps
 export const MUTED = '#8f8d86' // done steps, labels of upcoming steps: only the current step is coloured
 export const WASH = '#88878010' // a light see-through grey behind frames and cards, on the desktop
 export const TRACK = 'rgba(128,128,128,0.35)'
@@ -39,19 +38,20 @@ export const dotsSvg = (current: number, total: number, currentFill: string) =>
     .join('') +
   `</svg>`
 // The wordmark: a fixed SVG, larger and heavier than text can be (an image cannot follow
-// the theme, so its colours read on both). A change's life in three steps, two done and
-// the last under way, then "spec" in violet and "manager" in the neutral grey
+// the theme, so its colours read on both). A change's life told in the pane's colours:
+// a step done in grey, one the AI took in terracotta, the open one waiting on you in
+// blue; then "spec" in terracotta and "manager" in the neutral grey
 export const BRAND_W = 176
 export const BRAND_H = 28
 export const BRAND_SANS = "system-ui,-apple-system,'Segoe UI','Inter','Noto Sans','DejaVu Sans',sans-serif"
 export const brandSvg = () =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${BRAND_W}" height="${BRAND_H}" viewBox="0 0 ${BRAND_W} ${BRAND_H}">` +
   // The thread stops at the open step's edge; the words in one text, spaced by the font
-  `<line x1="5" y1="14" x2="31" y2="14" stroke="${VIOLET_LINE}" stroke-width="2"/>` +
-  `<circle cx="5" cy="14" r="4" fill="${VIOLET}"/><circle cx="21" cy="14" r="4" fill="${VIOLET}"/>` +
-  `<circle cx="37" cy="14" r="5" fill="none" stroke="${VIOLET}" stroke-width="2.4"/>` +
+  `<line x1="5" y1="14" x2="31" y2="14" stroke="${THREAD}" stroke-width="2"/>` +
+  `<circle cx="5" cy="14" r="4" fill="${MUTED}"/><circle cx="21" cy="14" r="4" fill="${CLAY}"/>` +
+  `<circle cx="37" cy="14" r="5" fill="none" stroke="${BLUE}" stroke-width="2.4"/>` +
   `<text x="50" y="20" font-family="${BRAND_SANS}" font-size="18" letter-spacing="-0.3">` +
-  `<tspan font-weight="800" fill="${VIOLET}">spec</tspan><tspan dx="5" font-weight="500" fill="${MUTED}">manager</tspan></text></svg>`
+  `<tspan font-weight="800" fill="${CLAY}">spec</tspan><tspan dx="5" font-weight="500" fill="${MUTED}">manager</tspan></text></svg>`
 // The actor colours are the reader's: someone else's change stays grey
 export const actorColor = (change: Change) => (change.isMine ? turnColor(change.turn) : MUTED)
 
@@ -64,7 +64,7 @@ export const barSvg = ({ done, total }: Progress) => {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${BAR_W}" height="${BAR_H}" viewBox="0 0 ${BAR_W} ${BAR_H}">` +
     `<clipPath id="r"><rect width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}"/></clipPath>` +
     `<g clip-path="url(#r)"><rect width="${BAR_W}" height="${BAR_H}" fill="${TRACK}"/>` +
-    `<rect width="${fill.toFixed(1)}" height="${BAR_H}" fill="${TEAL}"/></g></svg>`
+    `<rect width="${fill.toFixed(1)}" height="${BAR_H}" fill="${VIOLET}"/></g></svg>`
   )
 }
 

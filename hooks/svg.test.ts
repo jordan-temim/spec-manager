@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { BAR_H, BAR_W, CLAY, DOT, DOT_GAP, MUTED, TEAL, TODO_FILL, TODO_STROKE, barSvg, dotsSvg, dotsWidth, stepperSvg } from './svg'
+import { BAR_H, BAR_W, CLAY, DOT, DOT_GAP, MUTED, TODO_FILL, TODO_STROKE, VIOLET, barSvg, dotsSvg, dotsWidth, stepperSvg } from './svg'
 
 describe('card dots', () => {
   const dots = (svg: string) => (svg.match(/<rect /g) ?? []).length
@@ -39,7 +39,7 @@ describe('card dots', () => {
 
 describe('bar', () => {
   test('its filled part stays within the bar, whatever the counts', () => {
-    const filled = (svg: string) => svg.match(new RegExp(`<rect width="([-\\d.]+)" height="${BAR_H}" fill="${TEAL}"`))?.[1]
+    const filled = (svg: string) => svg.match(new RegExp(`<rect width="([-\\d.]+)" height="${BAR_H}" fill="${VIOLET}"`))?.[1]
     expect(filled(barSvg({ done: -2, total: 4 }))).toBe('0.0')
     expect(filled(barSvg({ done: 9, total: 4 }))).toBe(BAR_W.toFixed(1))
     expect(filled(barSvg({ done: 2, total: 4 }))).toBe((BAR_W / 2).toFixed(1))
