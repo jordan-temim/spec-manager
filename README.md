@@ -114,7 +114,7 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 | --- | --- | --- |
 | Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it |
 | Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
-| Violet `#8b5cf6` | progress | filled bars; a card's frame under the pointer |
+| Meadow green `#5fa83a` | the spec: progress against it | filled bars; a card's frame under the pointer (in live-review, a drift from the spec) |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |
 | See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |

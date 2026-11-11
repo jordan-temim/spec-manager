@@ -6,12 +6,13 @@ import type { Change, Progress, Turn } from '../types'
 export const BAR_W = 60
 export const BAR_H = 6
 // Palette, shared with live-review: terracotta for the AI (Claude's colour), blue for you
-// (as Claude's own design system splits them), violet for progress. A warm and a cool
-// actor told apart at a glance, and a third hue far from both; mid tones, readable on
-// both the light and the dark theme
+// (as Claude's own design system splits them), meadow green for the spec: here the tasks
+// checked off against it, in live-review a drift from it. A warm and a cool actor told
+// apart at a glance, and a third hue far from both; mid tones, readable on both the light
+// and the dark theme
 export const CLAY = '#d97757' // the AI: Claude's terracotta
 export const BLUE = '#378ADD' // you
-export const VIOLET = '#8b5cf6' // progress: filled bars, a card's frame under the pointer
+export const GREEN = '#5fa83a' // the spec: progress bars, a card's frame under the pointer
 export const THREAD = '#b4b2a9' // the wordmark's thread between its steps
 export const MUTED = '#8f8d86' // done steps, labels of upcoming steps: only the current step is coloured
 export const WASH = '#88878010' // a light see-through grey behind frames and cards, on the desktop
@@ -64,7 +65,7 @@ export const barSvg = ({ done, total }: Progress) => {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${BAR_W}" height="${BAR_H}" viewBox="0 0 ${BAR_W} ${BAR_H}">` +
     `<clipPath id="r"><rect width="${BAR_W}" height="${BAR_H}" rx="${BAR_H / 2}"/></clipPath>` +
     `<g clip-path="url(#r)"><rect width="${BAR_W}" height="${BAR_H}" fill="${TRACK}"/>` +
-    `<rect width="${fill.toFixed(1)}" height="${BAR_H}" fill="${VIOLET}"/></g></svg>`
+    `<rect width="${fill.toFixed(1)}" height="${BAR_H}" fill="${GREEN}"/></g></svg>`
   )
 }
 
