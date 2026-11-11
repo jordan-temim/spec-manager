@@ -108,13 +108,14 @@ A change is **yours** when you created it: you authored the first commit on its 
 
 ## Colours
 
-Each colour means one thing everywhere in the pane, on light and dark themes alike.
+Each colour means one thing everywhere in the pane, on light and dark themes alike, and the same in [live-review](https://github.com/jordan-temim/live-review): terracotta is Claude at work, blue is you.
 
 | Colour | Means | Where |
 | --- | --- | --- |
-| Violet `#8b5cf6` | the AI, and the wordmark | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it; the logo |
-| Amber `#d97706` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
+| Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it |
+| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
 | Teal `#12a594` | progress | filled bars; a card's frame under the pointer |
+| Violet `#8b5cf6` | the brand | the logo, nothing else |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |
 | See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |

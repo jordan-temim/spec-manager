@@ -5,12 +5,14 @@ import type { Change, Progress, Turn } from '../types'
 
 export const BAR_W = 60
 export const BAR_H = 6
-// Palette: violet for the AI (and the wordmark), amber for you, teal for progress. Two
-// actors told apart at a glance, colour-blind readers included; mid tones, readable on
-// both the light and the dark theme
-export const VIOLET = '#8b5cf6' // the AI, and the brand
-export const AMBER = '#d97706' // you
+// Palette, shared with live-review: terracotta for the AI (Claude's colour), blue for you
+// (as Claude's own design system splits them), teal for progress, violet for the brand
+// alone (the wordmark). A warm and a cool actor, told apart at a glance; mid tones,
+// readable on both the light and the dark theme
+export const CLAY = '#d97757' // the AI: Claude's terracotta
+export const BLUE = '#378ADD' // you
 export const TEAL = '#12a594' // progress: filled bars
+export const VIOLET = '#8b5cf6' // the brand: the wordmark, nothing else in the pane
 export const VIOLET_LINE = '#a78bfa' // the wordmark's thread between its steps
 export const MUTED = '#8f8d86' // done steps, labels of upcoming steps: only the current step is coloured
 export const WASH = '#88878010' // a light see-through grey behind frames and cards, on the desktop
@@ -18,7 +20,7 @@ export const TRACK = 'rgba(128,128,128,0.35)'
 // Upcoming steps: a pale fill, and a dark grey outline that keeps them visible on a white pane
 export const TODO_FILL = 'rgba(128,128,128,0.22)'
 export const TODO_STROKE = '#6e6c66'
-export const turnColor = (turn: Turn) => (turn === 'you' ? AMBER : VIOLET)
+export const turnColor = (turn: Turn) => (turn === 'you' ? BLUE : CLAY)
 
 // The stepper in dots, for a module's card, one per step (six with the spec-driven
 // documents): done grey, current in the actor's colour, upcoming outlined

@@ -5,7 +5,7 @@ import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { ALL, isNotInstalled, settle, steps } from './model'
 import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
-import { AMBER, BAR_H, BAR_W, BRAND_H, BRAND_W, DOT, MUTED, RULE_SVG, TAB_H, TEAL, VIOLET, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
+import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, MUTED, RULE_SVG, TAB_H, TEAL, VIOLET, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
 import type { Change, Module, Progress, Task, Turn, View } from '../types'
 
 // The same state as load.ts's: the state scan reads the atoms a file writes in its own consts
@@ -72,7 +72,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // What the two tags mean: the kind of the next step, not who is acting right now
   const legend = (
     <Text dimColor>
-      <Text bold color={VIOLET}>AI</Text> builds · <Text bold color={AMBER}>YOU</Text> act
+      <Text bold color={CLAY}>AI</Text> builds · <Text bold color={BLUE}>YOU</Text> act
     </Text>
   )
   const { roots, modules, selected, error, updatedAt, now } = await read($, view)
@@ -218,7 +218,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   const waitingOn = (change: Change, content: any, later = 0) => (
     <Box flexDirection="column" marginTop={1} paddingLeft={2}>
       <Box flexDirection="row">
-        <Text bold color={change.isMine ? AMBER : MUTED}>
+        <Text bold color={change.isMine ? BLUE : MUTED}>
           ● Waiting on {change.isMine ? 'you' : (change.owner ?? 'its author')}
         </Text>
         {later > 0 && <Text dimColor> (+{later} later)</Text>}
@@ -277,7 +277,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                 s.tasks.map(t => (
                   <Box flexDirection="row" paddingLeft={2}>
                     <Box flexShrink={0}>
-                      <Text color={t.isDone ? MUTED : t.isUserAction ? (change.isMine ? AMBER : MUTED) : undefined}>
+                      <Text color={t.isDone ? MUTED : t.isUserAction ? (change.isMine ? BLUE : MUTED) : undefined}>
                         {t.isDone ? '✓' : t.isUserAction ? '●' : '◦'}{' '}
                         {t.id ? `${t.id} ` : ''}
                       </Text>
@@ -326,13 +326,13 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         {/* The questions themselves, in your colour: they wait on you before /opsx:apply */}
         {openQuestions.length > 0 && (
           <Box flexDirection="column" paddingLeft={2}>
-            <Text bold color={AMBER}>
+            <Text bold color={BLUE}>
               ⚠ {openQuestions.length} open question{openQuestions.length === 1 ? '' : 's'} to settle
             </Text>
             {openQuestions.map(q => (
               <Box flexDirection="row" paddingLeft={2}>
                 <Box flexShrink={0}>
-                  <Text color={AMBER}>? </Text>
+                  <Text color={BLUE}>? </Text>
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text>{q}</Text>
@@ -401,7 +401,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         <>
           {sectionBars(change)}
           {change.yourNext &&
-            waitingOn(change, taskRow(change.yourNext, change.isMine ? AMBER : MUTED), change.yourLater)}
+            waitingOn(change, taskRow(change.yourNext, change.isMine ? BLUE : MUTED), change.yourLater)}
         </>
       )}
 
@@ -421,8 +421,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
 
       {change.aiNext && (
         <Box flexDirection="column" marginTop={1} paddingLeft={2}>
-          <Text bold color={change.isMine ? VIOLET : MUTED}>▶ AI next</Text>
-          {taskRow(change.aiNext, change.isMine ? VIOLET : MUTED)}
+          <Text bold color={change.isMine ? CLAY : MUTED}>▶ AI next</Text>
+          {taskRow(change.aiNext, change.isMine ? CLAY : MUTED)}
         </Box>
       )}
     </Box>
