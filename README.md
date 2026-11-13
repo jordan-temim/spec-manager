@@ -17,7 +17,7 @@
 While you work with Claude on OpenSpec changes, it answers at a glance:
 
 - **Where is each change in its cycle?** A stepper over OpenSpec's own steps: `proposal › specs › design › tasks › apply › archive`.
-- **Who does the next step?** An `AI` or `YOU` tag on each of your changes, and how many of each at the top (`2 [YOU]  1 [AI]`): `AI` when the AI builds something (writes the plan, codes the tasks), `YOU` when a user action is needed (review the plan, do a user-action task, check before archiving).
+- **Who does the next step?** An `AI` or `YOU` tag on each of your changes, and how many of each at the top (`2 [YOU]  1 [AI]`): `AI` when the AI builds something (writes the plan, codes the tasks), `YOU` when the step is yours (review the plan, check before archiving).
 - **How far along is it?** Task progress per change and per `tasks.md` section.
 - **Which are mine?** In a shared repository, other people's changes are greyed and named after their author.
 
@@ -42,7 +42,7 @@ With several modules, the session opened at the repository top shows an overview
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-overview.png" alt="The overview in the desktop pane: five modules, three changes waiting on you, two on the AI" /></p>
 
-`Open ›` on a module shows its changes: each one with its stepper, its task progress per `tasks.md` section, the task waiting on you and the AI's next one. The section under way lists its tasks (✓ done, ◦ to do, ● a user action); `›` opens any other section, `⌄` closes it, for the rest of the session.
+`Open ›` on a module shows its changes: each one with its stepper, its task progress per `tasks.md` section, and the AI's next task. The section under way lists its tasks (✓ done, ◦ to do); `›` opens any other section, `⌄` closes it, for the rest of the session.
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-module.png" alt="A module in the desktop pane: a change being implemented with its next task waiting on you, and a change the AI is planning" /></p>
 
@@ -66,7 +66,7 @@ Screenshots from a demo repository (a gym management app); the conversation, the
 | --- | --- | --- | --- |
 | Planning | a planning document is missing | `AI` | the document to write next |
 | Plan to review | every planning document written, no task checked (also while `/opsx:apply` works on its first task: the pane moves on once a task is checked) | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count; on the desktop, a ↗ beside each label (Why, a spec's name, Decisions, Tasks) opens the document it was read from in the Files tab |
-| Implementing | at least one task checked | `YOU` if the next task is a user action, else `AI` | progress per section, the tasks of the current one, your next user-action task, the AI's next task |
+| Implementing | at least one task checked | `AI` | progress per section, the tasks of the current one, the AI's next task |
 | Ready to archive | every task checked | `YOU` | the specs archiving will merge |
 
 A plan to review sums up the change in a few lines before any code is written:
@@ -75,9 +75,7 @@ A plan to review sums up the change in a few lines before any code is written:
 
 A planning document a change skips (`skip_specs: true` in its `.openspec.yaml`, for a change that modifies no spec) counts as written and reads `– specs` in the stepper.
 
-A task is a **user action** when its text starts with `*(user action …)*` (or `*(action utilisateur …)*`); it is listed under `● Waiting on you`.
-
-The tag is inferred from the files alone. OpenSpec does not record reviews: a checked box means the task was checked, not that someone reviewed it. `/opsx:explore` writes no file, so exploring shows nothing until a change exists.
+The tag is inferred from OpenSpec's files alone, with no convention of the pane's own in them: OpenSpec says nothing of who does a task, so while tasks are checked the AI builds. OpenSpec does not record reviews: a checked box means the task was checked, not that someone reviewed it. `/opsx:explore` writes no file, so exploring shows nothing until a change exists.
 
 `SPECS` lists the main specs (`openspec/specs/`) with their requirement count; `ARCHIVED` the three most recent archived changes. Both start closed, their heading and count only: `›` opens one, `⌄` closes it, for the rest of the session.
 
@@ -115,7 +113,7 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 | Colour | Means | Where |
 | --- | --- | --- |
 | Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids and `◦` marks, the current step while the AI holds it |
-| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids and `●` marks, open questions on your own plans, the current step while you hold it |
+| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, open questions on your own plans, the current step while you hold it |
 | Meadow green `#5fa83a` | the spec: progress against it | filled bars; a card's frame under the pointer; *spec* in the logo (in live-review, a drift from the spec) |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |

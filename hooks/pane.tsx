@@ -22,12 +22,17 @@ const HELP_TABS: readonly (readonly [HelpTab, string])[] = [
   ['marks', 'Marks'],
   ['commands', 'Commands'],
 ]
-const HELP_CYCLE: readonly (readonly [Turn, string, string])[] = [
-  ['ai', '/opsx:propose', 'The AI writes the proposal, the specs, the design and the tasks.'],
-  ['you', 'You review the plan', 'Open questions first, then /opsx:apply.'],
-  ['ai', 'The AI builds', 'It checks the tasks off; the green bar moves.'],
-  ['you', 'Your actions on the way', 'A ● task (a key, an account) waits on you.'],
-  ['you', '/opsx:archive', "Every task checked: you close the change, its specs join the module's."],
+// Every /opsx step, in order: who takes it, its name, what it does, whether it may be
+// skipped. Reviewing is no command: the pane reads it from the files, all written and
+// no task checked
+const HELP_CYCLE: readonly (readonly [Turn, string, string, boolean])[] = [
+  ['you', '/opsx:explore', 'Think it through with the AI first: nothing is written.', true],
+  ['ai', '/opsx:propose', 'The AI writes the proposal, the specs, the design and the tasks.', false],
+  ['you', 'You review the plan', 'Open questions first; the pane shows it all.', false],
+  ['ai', '/opsx:update', 'The AI revises the plan as your review asks, and keeps it coherent.', true],
+  ['ai', '/opsx:apply', 'The AI builds and checks the tasks off; the green bar moves.', false],
+  ['ai', '/opsx:sync', "The change's specs merged into the module's, without archiving.", true],
+  ['you', '/opsx:archive', "Every task checked: you close the change, its specs join the module's.", false],
 ]
 const HELP_COMMANDS: readonly (readonly [string, string])[] = [
   ['/spec-manager', 'Opens the pane, or brings it back'],
@@ -148,7 +153,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
     const body = {
       cycle: (
         <Box flexDirection="column" gap={air(1)}>
-          {HELP_CYCLE.map(([turn, title, text], i) =>
+          {HELP_CYCLE.map(([turn, title, text, isOptional], i) =>
             card(
               `help-step:${i}`,
               <>
@@ -160,7 +165,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                   </Text>
                 )}
                 <Box flexDirection="column" flexShrink={1} minWidth={0}>
-                  <Text bold>{title}</Text>
+                  <Text>
+                    <Text bold>{title}</Text>
+                    {isOptional && <Text dimColor> · optional</Text>}
+                  </Text>
                   <Text dimColor>{text}</Text>
                 </Box>
               </>,
@@ -176,8 +184,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
             {mark('owner', tag('ana', MUTED), "Someone else's change, in grey: whose it is")}
           </Box>
           <Box flexDirection="column">
-            {mark('user-task', <Text color={BLUE}>●</Text>, 'A task for you to do (a key, an account)')}
-            {mark('ai-task', <Text color={CLAY}>◦</Text>, 'A task for the AI')}
+            {mark('task', <Text color={CLAY}>◦</Text>, 'A task to do: the AI builds them all')}
             {mark('done', <Text color={MUTED}>✓</Text>, 'Done')}
             {mark(
               'bar',
@@ -366,19 +373,17 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         <Text color={color}>{task.id ? `${task.id} ` : ''}</Text>
       </Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
-        {/* No mark here: user-action tasks only ever show under "Waiting on you", which carries one */}
         <Text wrap="truncate-end">{task.text}</Text>
       </Box>
     </Box>
   )
 
-  const waitingOn = (change: Change, content: any, later = 0) => (
+  const waitingOn = (change: Change, content: any) => (
     <Box flexDirection="column" marginTop={1} paddingLeft={2}>
       <Box flexDirection="row">
         <Text bold color={change.isMine ? BLUE : MUTED}>
           ● Waiting on {change.isMine ? 'you' : (change.owner ?? 'its author')}
         </Text>
-        {later > 0 && <Text dimColor> (+{later} later)</Text>}
       </Box>
       {content}
     </Box>
@@ -406,7 +411,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   )
 
   // Each section opens on its tasks: the current one by itself, the others on a press.
-  // ✓ done, ◦ to do, ● a user action
+  // ✓ done, ◦ to do: every task the AI's, as OpenSpec says nothing of who does one
   const sectionBars = (change: Change) => {
     const current = change.sections.find(s => s.done < s.total)?.num
     return (
@@ -434,8 +439,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                 s.tasks.map(t => (
                   <Box flexDirection="row" paddingLeft={2}>
                     <Box flexShrink={0}>
-                      <Text color={t.isDone || !change.isMine ? MUTED : t.isUserAction ? BLUE : CLAY}>
-                        {t.isDone ? '✓' : t.isUserAction ? '●' : '◦'}{' '}
+                      <Text color={t.isDone || !change.isMine ? MUTED : CLAY}>
+                        {t.isDone ? '✓' : '◦'}{' '}
                         {t.id ? `${t.id} ` : ''}
                       </Text>
                     </Box>
@@ -560,11 +565,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       )}
 
       {change.phase === 'implementing' && (
-        <Box flexDirection="column">
-          {sectionBars(change)}
-          {change.yourNext &&
-            waitingOn(change, taskRow(change.yourNext, change.isMine ? BLUE : MUTED), change.yourLater)}
-        </Box>
+        <Box flexDirection="column">{sectionBars(change)}</Box>
       )}
 
       {change.phase === 'ready' &&

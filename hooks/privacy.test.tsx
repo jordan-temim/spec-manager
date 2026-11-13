@@ -17,7 +17,7 @@ const EXISTING = new Set(['/repo/.git', `${MODULE}/openspec`])
 const FILES: Record<string, string> = {
   [`${CHANGE}/proposal.md`]: '# Proposal\n\n## Why\n\nRefunds are manual. They take two days.\n',
   [`${CHANGE}/design.md`]: '## Decisions\n\n### D1. Provider API\n\n## Open Questions\n\n- Keep the order open?\n',
-  [`${CHANGE}/tasks.md`]: '## 1. Data\n\n- [x] 1.1 Table\n- [ ] 1.2 *(user action)* Add the key\n',
+  [`${CHANGE}/tasks.md`]: '## 1. Data\n\n- [x] 1.1 Table\n- [ ] 1.2 Add the key\n',
   [`${CHANGE}/specs/refunds/spec.md`]: '### Requirement: Refund\n#### Scenario: Full\n',
 }
 const ARTIFACTS = {

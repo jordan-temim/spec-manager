@@ -40,8 +40,6 @@ export const partialMatches = (arg: string, paths: string[], base: string) => {
   return paths.filter(p => moduleName(base, p).toLowerCase().includes(wanted))
 }
 
-export const USER_ACTION = /^\*\((?:action utilisateur|user action)[^)]*\)\*\s*/i
-
 // Sections (`## 1. Title`) with their checkbox counts, and the unchecked tasks in order
 // Windows line endings (CRLF) read as plain ones: `.` stops at a `\r`, so a line
 // ending in one matched no heading and no checkbox
@@ -74,14 +72,13 @@ export function parseTasks(markdown: string): { sections: Section[]; open: Task[
     const isId = found !== '' && (!found.includes('.') || !section || found.startsWith(`${section.num}.`))
     const id = isId ? found : ''
     const rest = isId ? after : box[2]!
-    const isUserAction = USER_ACTION.test(rest)
-    const text = rest.replace(USER_ACTION, '').replace(/[`*]/g, '').trim()
+    const text = rest.replace(/[`*]/g, '').trim()
     if (section) {
       section.total++
       if (isDone) section.done++
-      section.tasks.push({ id, text, isUserAction, isDone })
+      section.tasks.push({ id, text, isDone })
     }
-    if (!isDone) open.push({ id, text, isUserAction })
+    if (!isDone) open.push({ id, text })
   }
   return { sections: sections.filter(s => s.total > 0), open }
 }
@@ -122,26 +119,20 @@ export function whoseTurn(
   artifacts: Artifact[],
   tasks: Progress,
   open: Task[],
-): Pick<Change, 'phase' | 'turn' | 'yourNext' | 'yourLater' | 'aiNext'> {
+): Pick<Change, 'phase' | 'turn' | 'aiNext'> {
   const missing = artifacts.find(a => !a.isDone)
   if (missing) {
-    return { phase: 'planning', turn: 'ai', yourLater: 0, aiNext: { id: '', text: `write ${missing.name}`, isUserAction: false } }
+    return { phase: 'planning', turn: 'ai', aiNext: { id: '', text: `write ${missing.name}` } }
   }
   if (tasks.total > 0 && tasks.done === tasks.total) {
-    return { phase: 'ready', turn: 'you', yourLater: 0 }
+    return { phase: 'ready', turn: 'you' }
   }
   // /opsx:propose writes the four documents in one go, then stops: the plan waits for review
   if (tasks.done === 0) {
-    return { phase: 'review', turn: 'you', yourLater: 0 }
+    return { phase: 'review', turn: 'you' }
   }
-  const yours = open.filter(t => t.isUserAction)
-  return {
-    phase: 'implementing',
-    turn: open[0]?.isUserAction ? 'you' : 'ai',
-    yourNext: yours[0],
-    yourLater: Math.max(0, yours.length - 1),
-    aiNext: open.find(t => !t.isUserAction),
-  }
+  // OpenSpec says nothing of who does a task: while tasks are checked, the AI builds
+  return { phase: 'implementing', turn: 'ai', aiNext: open[0] }
 }
 
 // First sentence of the proposal's `## Why`

@@ -36,15 +36,15 @@ describe('tasks.md', () => {
       {
         num: '1', title: 'Setup', done: 2, total: 2,
         tasks: [
-          { id: '1.1', text: 'Create the skeleton', isUserAction: false, isDone: true },
-          { id: '1.2', text: 'Add .gitignore', isUserAction: false, isDone: true },
+          { id: '1.1', text: 'Create the skeleton', isDone: true },
+          { id: '1.2', text: 'Add .gitignore', isDone: true },
         ],
       },
       {
         num: '2', title: 'Fetch', done: 0, total: 2,
         tasks: [
-          { id: '2.1', text: 'Run the capture', isUserAction: true, isDone: false },
-          { id: '2.2', text: 'Parse the response', isUserAction: false, isDone: false },
+          { id: '2.1', text: '(action utilisateur : clé dans .env) Run the capture', isDone: false },
+          { id: '2.2', text: 'Parse the response', isDone: false },
         ],
       },
     ])
@@ -62,7 +62,7 @@ describe('tasks.md', () => {
 
   test('a bare number opening a task is its words, not an id', () => {
     const { open } = parseTasks('## 1. Webhook\n\n- [ ] 3 retries at most on the webhook\n')
-    expect(open).toEqual([{ id: '', text: '3 retries at most on the webhook', isUserAction: false }])
+    expect(open).toEqual([{ id: '', text: '3 retries at most on the webhook' }])
   })
 
   test('a numbered section with no task is left out', () => {
@@ -70,11 +70,12 @@ describe('tasks.md', () => {
     expect(sections.map(s => s.num)).toEqual(['1', '3'])
   })
 
-  test('lists open tasks in order and flags user actions', () => {
+  // A "(user action)" mark is no part of OpenSpec: it stays in the task's words, as written
+  test('lists open tasks in order, their words as written', () => {
     const { open } = parseTasks(TASKS)
     expect(open).toEqual([
-      { id: '2.1', text: 'Run the capture', isUserAction: true },
-      { id: '2.2', text: 'Parse the response', isUserAction: false },
+      { id: '2.1', text: '(action utilisateur : clé dans .env) Run the capture' },
+      { id: '2.2', text: 'Parse the response' },
     ])
   })
 })
@@ -100,45 +101,14 @@ describe('whose turn', () => {
     expect(turn.turn).toBe('you')
   })
 
-  test('a user action first in line is your turn', () => {
+  // OpenSpec says nothing of who does a task: while tasks are checked, the AI builds, its
+  // next task the first one open, whatever its words
+  test('tasks under way are the AI to build, the first open one next', () => {
     const { open } = parseTasks(TASKS)
     const turn = whoseTurn(ALL_WRITTEN, { done: 2, total: 4 }, open)
     expect(turn.phase).toBe('implementing')
-    expect(turn.turn).toBe('you')
-    expect(turn.yourNext?.id).toBe('2.1')
-    expect(turn.aiNext?.id).toBe('2.2')
-  })
-
-  test('a task of the AI first in line is its turn, a user action later still waits on you', () => {
-    const open = [
-      { id: '2.2', text: 'Parse the response', isUserAction: false },
-      { id: '2.3', text: 'Add the key', isUserAction: true },
-      { id: '2.4', text: 'Retry', isUserAction: false },
-    ]
-    const turn = whoseTurn(ALL_WRITTEN, { done: 2, total: 5 }, open)
-    expect(turn.phase).toBe('implementing')
     expect(turn.turn).toBe('ai')
-    expect(turn.aiNext?.id).toBe('2.2')
-    expect(turn.yourNext?.id).toBe('2.3')
-    expect(turn.yourLater).toBe(0)
-  })
-
-  test('several user actions open: the first is next, the others counted later', () => {
-    const open = [
-      { id: '3.1', text: 'Add the key', isUserAction: true },
-      { id: '3.2', text: 'Retry', isUserAction: false },
-      { id: '3.3', text: 'Check the screen', isUserAction: true },
-    ]
-    const turn = whoseTurn(ALL_WRITTEN, { done: 2, total: 5 }, open)
-    expect(turn.yourNext?.id).toBe('3.1')
-    expect(turn.yourLater).toBe(1)
-  })
-
-  test('only user actions left: your turn, nothing for the AI', () => {
-    const open = [{ id: '4.1', text: 'Try it on the phone', isUserAction: true }]
-    const turn = whoseTurn(ALL_WRITTEN, { done: 3, total: 4 }, open)
-    expect(turn.turn).toBe('you')
-    expect(turn.aiNext).toBe(undefined)
+    expect(turn.aiNext?.id).toBe('2.1')
   })
 
   test('all tasks checked is ready to archive', () => {

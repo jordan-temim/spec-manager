@@ -10,7 +10,7 @@ const TASKS = `## 1. Data
 ## 2. Provider
 
 - [x] 2.1 Call the refund API
-- [ ] 2.2 *(user action)* Add the provider key
+- [ ] 2.2 Add the provider key
 - [ ] 2.3 Retry on timeout
 
 ## 3. Screens
@@ -65,9 +65,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     // The section under way is open, done and upcoming ones closed
     expect(await shown(/Call the refund API/)).toBe(true)
     expect(await shown(/Retry on timeout/)).toBe(true)
-    // Its open tasks by their section marks: 2.2 and 2.3 also show, unmarked, under
-    // "Waiting on you" and "AI next", so their text alone cannot say the section is shut
-    expect(await shown(/● 2\.2/)).toBe(true)
+    // Its open tasks by their section marks: 2.2 also shows, unmarked, under "AI next",
+    // so its text alone cannot say the section is shut
+    expect(await shown(/◦ 2\.2/)).toBe(true)
     expect(await shown(/◦ 2\.3/)).toBe(true)
     expect(await shown(/Refunds table/)).toBe(false)
     expect(await shown(/Refund button/)).toBe(false)
@@ -86,7 +86,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await shown(/Refund button/)).toBe(true)
     await ui.press({ key: sectionKey(2) })
     expect(await shown(/Call the refund API/)).toBe(false)
-    expect(await shown(/● 2\.2/)).toBe(false)
+    expect(await shown(/◦ 2\.2/)).toBe(false)
     expect(await shown(/◦ 2\.3/)).toBe(false)
     await ui.press({ key: sectionKey(3) })
     expect(await shown(/Refund button/)).toBe(false)
@@ -146,11 +146,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
 }
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`on the ${surface}, a section's marks: your actions in blue, the AI's in terracotta, done ones grey`, async ($, on) => {
+  test(`on the ${surface}, a section's marks: open tasks in the AI's terracotta, done ones grey`, async ($, on) => {
     const { ui } = await mount($, on, surface)
     await ui.press({ key: sectionKey(1) })
     const colorOf = async (text: RegExp) => ((await ui.find({ type: 'Text', text })) as any)?.props?.color
-    expect(await colorOf(/● 2\.2/)).toBe('#378ADD')
     expect(await colorOf(/◦ 2\.3/)).toBe('#d97757')
     expect(await colorOf(/✓ 1\.1/)).toBe('#8f8d86')
     await ui.unmount()

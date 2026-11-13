@@ -4,7 +4,7 @@ export type Progress = { done: number; total: number }
 export type Artifact = { name: string; isDone: boolean; isSkipped?: boolean }
 
 /** A task of tasks.md; where checked or not matters, the field holding it says so */
-export type Task = { id: string; text: string; isUserAction: boolean }
+export type Task = { id: string; text: string }
 
 /** A `## N. Title` section of tasks.md with its checkbox count and every task in it */
 export type Section = { num: string; title: string; tasks: (Task & { isDone: boolean })[] } & Progress
@@ -12,7 +12,7 @@ export type Section = { num: string; title: string; tasks: (Task & { isDone: boo
 /** The help page's tabs: the OpenSpec cycle, the pane's marks, the commands */
 export type HelpTab = 'cycle' | 'marks' | 'commands'
 
-/** Whose move it is: you (review, a user action, archive) or the AI */
+/** Whose move it is: you (review, archive) or the AI */
 export type Turn = 'you' | 'ai'
 
 /** planning: an artifact is missing; review: all written, no task checked yet */
@@ -41,11 +41,8 @@ export type Change = {
   phase: Phase
   /** Whose move it is, from the files alone: reviews are not tracked by OpenSpec */
   turn: Turn
-  /** Nearest unchecked user-action task, and how many more follow it */
-  yourNext?: Task
-  yourLater: number
-  /** What the AI can do next: the nearest unchecked task that is not a user action, or,
-   *  while planning, the document to write (`write <name>`, no id) */
+  /** What the AI does next: the nearest unchecked task, or, while planning, the document
+   *  to write (`write <name>`, no id) */
   aiNext?: Task
   /** ISO date of the last change to the change's files */
   lastModified?: string

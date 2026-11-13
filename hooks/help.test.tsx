@@ -25,14 +25,15 @@ for (const surface of ['terminal', 'desktop'] as const) {
       expect(await shown(/How spec manager works/)).toBe(false)
 
       await ui.press({ key: 'help:open' })
-      // The cycle first: five steps, the pane itself gone
+      // The cycle first: every /opsx step, the optional ones said so, the pane itself gone
       expect(await shown(/How spec manager works/)).toBe(true)
-      expect(await shown(/^\/opsx:propose$/)).toBe(true)
-      expect(await shown(/^\/opsx:archive$/)).toBe(true)
+      for (const command of ['propose', 'apply', 'archive']) expect(await shown(new RegExp(`^/opsx:${command}$`))).toBe(true)
+      for (const command of ['explore', 'update', 'sync']) expect(await shown(new RegExp(`^/opsx:${command} · optional$`))).toBe(true)
       expect(await shown(/^CHANGES$/)).toBe(false)
 
       await ui.press({ key: 'help-tab:marks' })
-      expect(await shown(/^A task for the AI$/)).toBe(true)
+      expect(await shown(/^A task to do: the AI builds them all$/)).toBe(true)
+      expect(await shown(/task for you/i)).toBe(false)
       expect(await shown(/^\/opsx:propose$/)).toBe(false)
       // The ↗ is the desktop's alone, as the links it explains
       expect(await shown(/in the Files tab/)).toBe(surface === 'desktop')
@@ -56,8 +57,12 @@ test('each step of the cycle is numbered in the colour of who takes it', async (
   try {
     await ui.press({ key: 'help:open' })
     const colorOf = async (n: number) => ((await ui.find({ type: 'Text', text: new RegExp(`^${n}\\.$`) })) as any)?.props?.color
-    // propose and build are the AI's; review, your actions and archive yours
-    expect([await colorOf(1), await colorOf(2), await colorOf(3), await colorOf(4), await colorOf(5)]).toEqual(['#d97757', '#378ADD', '#d97757', '#378ADD', '#378ADD'])
+    const AI = '#d97757'
+    const YOU = '#378ADD'
+    // explore, review and archive are yours; propose, update, apply and sync the AI's
+    const colors = await Promise.all([1, 2, 3, 4, 5, 6, 7].map(colorOf))
+    expect(colors).toEqual([YOU, AI, YOU, AI, AI, AI, YOU])
+    expect(await colorOf(8)).toBe(undefined)
   } finally {
     await ui.unmount()
   }
