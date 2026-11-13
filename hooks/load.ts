@@ -241,9 +241,15 @@ export async function loadDigest($: EngineInterface, changeRoot: string, specPat
     why: whyLine(proposal),
     specs: specPaths.map((file, i) => ({
       name: specName(file),
+      file,
       ...specCounts(specs[i] ?? ''),
     })),
     ...parseDesign(design),
+    // Where each line of the digest comes from: the pane links its label there
+    files: {
+      ...(proposal.trim() ? { proposal: `${changeRoot}/proposal.md` } : {}),
+      ...(design.trim() ? { design: `${changeRoot}/design.md` } : {}),
+    },
   }
 }
 
@@ -341,7 +347,7 @@ export async function loadRoot($: EngineInterface, path: string, full = true): P
       tasks,
       artifacts,
       sections,
-      digest,
+      digest: full && markdown.trim() ? { ...digest, files: { ...digest.files, tasks: `${changeRoot}/tasks.md` } } : digest,
       lastModified: one.lastModified,
       ...owned,
       ...whoseTurn(artifacts, tasks, open),
@@ -468,8 +474,9 @@ export async function refreshOnce($: EngineInterface, s: Session, force: boolean
       s.readAt.delete(p)
     }
     paths.forEach((p, i) => s.signatures.set(p, sigs[i]))
-    if (stale.length === 0 && gone.length === 0) {
-      // Nothing moved: say when it was last checked, and that this look went through
+    // Nothing moved, and the module shown still among them (else it settles below)
+    if (stale.length === 0 && gone.length === 0 && selected === wanted) {
+      // Say when it was last checked, and that this look went through
       await update($, view, old => ({ ...old, updatedAt: now, now, error: undefined }))
       return
     }

@@ -5,7 +5,8 @@ const MODULE = '/repo/packages/paiement'
 const CHANGE = `${MODULE}/openspec/changes/add-refunds`
 
 // `author`: the change's first commit, as git log gives it; none, the reader's own
-const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; totalTasks: number }, specs: string[], author = '') => {
+// `design`: the change's design.md, none when empty
+const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; totalTasks: number }, specs: string[], author = '', design = '') => {
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
@@ -14,7 +15,9 @@ const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; tota
     const names = e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : []
     return { value: names.map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) }
   })
-  on('fs.read', (_: unknown, e: { path: string }) => (e.path === `${CHANGE}/tasks.md` ? { value: tasks } : { deny: 'ENOENT' }))
+  on('fs.read', (_: unknown, e: { path: string }) =>
+    e.path === `${CHANGE}/tasks.md` ? { value: tasks } : e.path === `${CHANGE}/design.md` && design ? { value: design } : { deny: 'ENOENT' },
+  )
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } })
@@ -103,3 +106,53 @@ test("someone else's change ready to archive: no /opsx:archive for the reader", 
     expect(await ui.find({ type: 'Text', text: /\/opsx:archive/ })).toBe(undefined)
   })
 })
+
+// A plan under review with one open question in its design
+const QUESTION = '## Open Questions\n\n- Keep the order open?\n'
+const REVIEW = ['## 1. Data\n\n- [ ] 1.1 Table\n', { completedTasks: 0, totalTasks: 1 }, ['refunds']] as const
+
+for (const [whose, author, color] of [
+  ['your own plan', '', '#378ADD'],
+  ["someone else's plan", 'ana@example.org\tAna\n', '#8f8d86'],
+] as const) {
+  test(`open questions on ${whose}: in ${color === '#378ADD' ? 'your blue' : 'grey'}`, async ($, on) => {
+    fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], author, QUESTION)
+    await withPane($, async ui => {
+      const colorOf = async (text: RegExp) => ((await ui.find({ type: 'Text', text })) as any)?.props?.color
+      expect(await colorOf(/^⚠ 1 open question to settle$/)).toBe(color)
+      expect(await colorOf(/^\? $/)).toBe(color)
+    })
+  })
+}
+
+// Each line of the plan links to the document it was read from (a document with nothing
+// in it gives none): a Link on the terminal, a Markdown link on the desktop
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on the ${surface}, the plan's labels open their documents`, async ($, on) => {
+    fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n')
+    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    try {
+      // A link's text, as the kit reads it, is its URL then its words
+      const hrefOf = async (words: string) => ((await ui.find({ type: 'Link', text: new RegExp(`${words}$`) })) as any)?.props?.href
+      if (surface === 'terminal') {
+        expect(await hrefOf('Decisions')).toBe(`file://${CHANGE}/design.md`)
+        expect(await hrefOf('Tasks')).toBe(`file://${CHANGE}/tasks.md`)
+        expect(await hrefOf('refunds')).toBe(`file://${CHANGE}/specs/refunds/spec.md`)
+        // No proposal.md here: no Why line, so no link to it
+        expect(await hrefOf('Why')).toBe(undefined)
+        expect(await ui.find({ type: 'Text', text: /Decisions ↗$/ })).toBeDefined()
+      } else {
+        // The desktop's Link would draw a file link as plain text: Markdown carries it
+        expect(await ui.find({ type: 'Link' })).toBe(undefined)
+        const markdownOf = async (words: string) => ((await ui.find({ type: 'Markdown', text: new RegExp(`\\[${words}\\]`) })) as any)?.props?.text
+        expect(await markdownOf('Decisions')).toBe(`**[Decisions](file://${CHANGE}/design.md)** ↗`)
+        expect(await markdownOf('Tasks')).toBe(`**[Tasks](file://${CHANGE}/tasks.md)** ↗`)
+        expect(await markdownOf('refunds')).toBe(`[refunds](file://${CHANGE}/specs/refunds/spec.md) ↗`)
+        expect(await markdownOf('Why')).toBe(undefined)
+      }
+    } finally {
+      await ui.unmount()
+    }
+  })
+}

@@ -326,3 +326,59 @@ test('a module opened during an overview refresh ends up read in full', async ($
     await ui.unmount()
   }
 })
+
+// The module shown dropped from those listed (gone between two looks): while `isOn`, the
+// view as read says so; with `isOnce`, only until the plugin's next write keeps it so
+const goneModule = (on: any, isOnce = false) => {
+  const gone = { isOn: false }
+  on('state.get', async (_: unknown, e: any, next: (e: unknown) => any) => {
+    const r = await next(e)
+    if (!gone.isOn || e.key !== 'view' || !r?.value?.value) return r
+    return { ...r, value: { ...r.value, value: { ...r.value.value, selected: '/repo/packages/gone', roots: [] } } }
+  })
+  on('state.set', (_: unknown, e: { key: string }, next: (e: unknown) => unknown) => {
+    if (isOnce && e.key === 'view') gone.isOn = false
+    return next(e)
+  })
+  return gone
+}
+
+test('a module shown but no longer listed keeps the way back to the overview', async ($, on) => {
+  const gone = goneModule(on)
+  const { clock, run, mount } = twoModules($, on)
+  await run('catalogue')
+  await clock.settle()
+  gone.isOn = true
+  const ui = await mount()
+  try {
+    expect(await ui.find({ type: 'Text', text: /^gone · 2 other modules$/ })).toBeDefined()
+    gone.isOn = false
+    await ui.press({ key: 'modules:all' })
+    expect(await ui.find({ type: 'Text', text: /^MODULES$/ })).toBeDefined()
+  } finally {
+    await ui.unmount()
+  }
+})
+
+test('a poll where nothing moved takes the pane off a module no longer listed', async ($, on) => {
+  const gone = goneModule(on, true)
+  const { clock, run, mount } = twoModules($, on)
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await run('catalogue')
+  await clock.settle()
+  // Kept as shown on a module no longer listed, by the next write of the view
+  gone.isOn = true
+  await clock.advance(POLL_MS)
+  await clock.settle()
+  expect(gone.isOn).toBe(false)
+  // The poll after finds the files as they were: it settles on the overview all the same
+  await clock.advance(POLL_MS)
+  await clock.settle()
+  const ui = await mount()
+  try {
+    expect(await ui.find({ type: 'Text', text: /^MODULES$/ })).toBeDefined()
+    expect(await ui.find({ key: 'modules:all' })).toBe(undefined)
+  } finally {
+    await ui.unmount()
+  }
+})

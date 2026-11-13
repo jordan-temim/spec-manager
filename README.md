@@ -63,7 +63,7 @@ Screenshots from a demo repository (a gym management app); the conversation, the
 | Phase | When | Next step by | Below the stepper |
 | --- | --- | --- | --- |
 | Planning | a planning document is missing | `AI` | the document to write next |
-| Plan to review | every planning document written, no task checked (also while `/opsx:apply` works on its first task: the pane moves on once a task is checked) | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count |
+| Plan to review | every planning document written, no task checked (also while `/opsx:apply` works on its first task: the pane moves on once a task is checked) | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count; each label (Why ↗, a spec's name, Decisions ↗, Tasks ↗) opens the document it was read from |
 | Implementing | at least one task checked | `YOU` if the next task is a user action, else `AI` | progress per section, the tasks of the current one, your next user-action task, the AI's next task |
 | Ready to archive | every task checked | `YOU` | the specs archiving will merge |
 
@@ -113,7 +113,7 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 | Colour | Means | Where |
 | --- | --- | --- |
 | Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it |
-| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions, the current step while you hold it |
+| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions on your own plans, the current step while you hold it |
 | Meadow green `#5fa83a` | the spec: progress against it | filled bars; a card's frame under the pointer (in live-review, a drift from the spec) |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |

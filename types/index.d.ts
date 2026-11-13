@@ -15,7 +15,8 @@ export type Turn = 'you' | 'ai'
 /** planning: an artifact is missing; review: all written, no task checked yet */
 export type Phase = 'planning' | 'review' | 'implementing' | 'ready'
 
-export type ChangeSpec = { name: string; requirements: number; scenarios: number }
+/** `file`: its spec.md, absolute, to open from the pane */
+export type ChangeSpec = { name: string; file: string; requirements: number; scenarios: number }
 
 /** The plan in a few lines, read from the headings of the change's documents */
 export type Digest = {
@@ -24,6 +25,8 @@ export type Digest = {
   decisions: string[]
   /** The bullets under `## Open Questions` in design.md */
   openQuestions: string[]
+  /** Each document the digest read, absolute, when it has something in it */
+  files?: { proposal?: string; design?: string; tasks?: string }
 }
 
 export type Change = {

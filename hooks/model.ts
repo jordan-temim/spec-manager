@@ -207,6 +207,18 @@ export const absolute = (dir: string, file: string) => {
   return path.startsWith('/') || /^[A-Za-z]:\//.test(path) ? path : `${dir}/${path.replace(/^\.\//, '')}`
 }
 
+// A file's link: a file:// URL of its absolute path, a Windows one (C:/…) given its
+// third slash; what a URL reads as its own (#, ?, %) is escaped
+export const fileUrl = (path: string) => {
+  const slashed = path.replace(/\\/g, '/')
+  return `file://${slashed.startsWith('/') ? '' : '/'}${encodeURI(slashed).replace(/[?#]/g, c => encodeURIComponent(c))}`
+}
+
+// Markdown's own marks in a link's words and its target, escaped: a name with a ] or a
+// path with a ( stays one link
+export const mdText = (text: string) => text.replace(/[\\[\]*_`]/g, c => `\\${c}`)
+export const mdHref = (url: string) => url.replace(/[()\s]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
+
 // Whose change it is: the author of the oldest commit on its folder (`git log
 // --reverse --format=%ae%x09%an`). No commit yet means it was made here: the reader's
 export function ownerOf(log: string, me: string): { isMine: boolean; owner?: string } {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, artifactsFrom, artifactsFromFiles, isNotInstalled, moduleName, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
+import { absolute, artifactsFrom, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, mdText, moduleName, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -493,5 +493,22 @@ describe('openspec missing or failing', () => {
     // openspec's own answers, however they are worded
     expect(isNotInstalled('Change "add-refunds" not found')).toBe(false)
     expect(isNotInstalled('config.yaml not found in openspec/')).toBe(false)
+  })
+})
+
+describe('file links', () => {
+  test('an absolute path, as a file:// URL', () => {
+    expect(fileUrl('/repo/openspec/changes/add-refunds/design.md')).toBe('file:///repo/openspec/changes/add-refunds/design.md')
+  })
+  test('spaces, accents, # and ? escaped; a Windows path gets its third slash', () => {
+    expect(fileUrl('/repo/mes docs/écran#1?.md')).toBe('file:///repo/mes%20docs/%C3%A9cran%231%3F.md')
+    expect(fileUrl('C:\\repo\\design.md')).toBe('file:///C:/repo/design.md')
+  })
+})
+
+describe('markdown links', () => {
+  test("a name's brackets and stars escaped, a target's parentheses and spaces encoded", () => {
+    expect(mdText('a]b*c')).toBe('a\\]b\\*c')
+    expect(mdHref('file:///repo/a(1) b.md')).toBe('file:///repo/a%281%29%20b.md')
   })
 })

@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import { ALL, isNotInstalled, settle, steps } from './model'
+import { ALL, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
 import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
 import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, GREEN, MUTED, RULE_SVG, TAB_H, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
 import type { Change, Module, Progress, Task, Turn, View } from '../types'
@@ -52,6 +52,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // The terminal draws text: there the counts stand in for the bars, symbols for the
   // stepper. Asked by surface, since newer terminals carry an Svg that draws nothing
   const Svg = e.surface !== 'terminal' && 'Svg' in elements ? elements.Svg : undefined
+  // A document's link: on the terminal a Link (an OSC 8 span); the desktop draws a Link to a
+  // file as plain text, but its Markdown, the renderer of Claude's own replies, keeps
+  // file: links and opens them as a reply's are
+  const Link = e.surface === 'terminal' && 'Link' in elements ? elements.Link : undefined
+  const Markdown = e.surface !== 'terminal' && 'Markdown' in elements ? elements.Markdown : undefined
   // A terminal row is far taller than a pixel: there the frames and cards drop the
   // blank rows that only give the desktop some air
   const air = (rows: number) => (Svg ? rows : rows - 1)
@@ -194,11 +199,27 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
     </Box>
   )
 
-  // A label column, then its content
-  const field = (label: string, content: any, color?: string) => (
+  // A document to open from the pane: its text a link, then a quiet ↗ that says so.
+  // Opening it is the reader's move; where it opens is the surface's
+  const docLink = (file: string | undefined, text: string, isBold = false) =>
+    Markdown && file ? (
+      <Markdown text={`${isBold ? '**' : ''}[${mdText(text)}](${mdHref(fileUrl(file))})${isBold ? '**' : ''} ↗`} dimColor={isBold} />
+    ) : Link && file ? (
+      <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
+        <Link href={fileUrl(file)}>{text}</Link>
+        <Text dimColor bold={false}> ↗</Text>
+      </Text>
+    ) : (
+      <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
+        {text}
+      </Text>
+    )
+
+  // A label column, then its content; a label read from a document links to it
+  const field = (label: string, content: any, color?: string, file?: string) => (
     <Box flexDirection="row" paddingLeft={2}>
       <Box width={11} flexShrink={0}>
-        <Text bold dimColor={!color} color={color}>{label}</Text>
+        {file && !color ? docLink(file, label, true) : <Text bold dimColor={!color} color={color}>{label}</Text>}
       </Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>{content}</Box>
     </Box>
@@ -300,10 +321,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
 
   // The plan in a few lines, for the review between /opsx:propose and /opsx:apply
   const planDigest = (change: Change) => {
-    const { why, specs, decisions, openQuestions } = change.digest
+    const { why, specs, decisions, openQuestions, files = {} } = change.digest
     return (
       <Box flexDirection="column" marginTop={1} rowGap={1}>
-        {why && field('Why', <Text>{why}</Text>)}
+        {why && field('Why', <Text>{why}</Text>, undefined, files.proposal)}
         {field(
           'Specs',
           <Box flexDirection="column">
@@ -311,7 +332,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
             {specs.map(s => (
               <Box flexDirection="row">
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                  <Text wrap="truncate-end">{s.name}</Text>
+                  {docLink(s.file, s.name)}
                 </Box>
                 <Text dimColor> {s.requirements} req · {s.scenarios} scen</Text>
               </Box>
@@ -326,17 +347,20 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                 <Text wrap="truncate-end">{d}</Text>
               ))}
             </Box>,
+            undefined,
+            files.design,
           )}
-        {/* The questions themselves, in your colour: they wait on you before /opsx:apply */}
+        {/* The questions themselves, in your colour: they wait on you before /opsx:apply.
+            On someone else's plan they wait on its author: grey, as the rest of it */}
         {openQuestions.length > 0 && (
           <Box flexDirection="column" paddingLeft={2}>
-            <Text bold color={BLUE}>
+            <Text bold color={change.isMine ? BLUE : MUTED}>
               ⚠ {openQuestions.length} open question{openQuestions.length === 1 ? '' : 's'} to settle
             </Text>
             {openQuestions.map(q => (
               <Box flexDirection="row" paddingLeft={2}>
                 <Box flexShrink={0}>
-                  <Text color={BLUE}>? </Text>
+                  <Text color={change.isMine ? BLUE : MUTED}>? </Text>
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text>{q}</Text>
@@ -350,6 +374,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
           <Text>
             {change.sections.length} sections · {change.tasks.total} tasks
           </Text>,
+          undefined,
+          files.tasks,
         )}
       </Box>
     )
@@ -577,16 +603,18 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
     )
   }
 
-  // In one module of several: where we are, and the way back to the overview
+  // In one module of several: where we are, and the way back to the overview. Back
+  // there even from a module not (or no longer) among those listed: never a dead end
   const current = modules.find(m => m.path === selected)
+  const otherCount = current ? modules.length - 1 : modules.length
   const nav =
-    modules.length > 1 && current ? (
+    modules.length > 1 ? (
       <Box flexDirection="row" alignItems="center" marginBottom={1}>
         <Button key="modules:all" label="‹ All modules" variant="secondary" onPress={() => select($, session, ALL)} />
         <Box flexShrink={1} minWidth={0} marginLeft={2}>
           <Text wrap="truncate-end">
-            <Text bold>{current.name}</Text>
-            <Text dimColor> · {modules.length - 1} other module{modules.length === 2 ? '' : 's'}</Text>
+            <Text bold>{current?.name ?? selected?.split('/').pop() ?? 'module'}</Text>
+            <Text dimColor> · {otherCount} other module{otherCount === 1 ? '' : 's'}</Text>
           </Text>
         </Box>
       </Box>
