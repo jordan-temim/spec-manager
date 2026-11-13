@@ -33,10 +33,11 @@ const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; tota
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
-// paiement opened, `check` run on its pane, the pane unmounted whatever the check found
-const withPane = async ($: any, check: (ui: any) => Promise<void>) => {
+// paiement opened, `check` run on its pane (the desktop's unless said), the pane unmounted
+// whatever the check found
+const withPane = async ($: any, check: (ui: any) => Promise<void>, surface: 'terminal' | 'desktop' = 'desktop') => {
   await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
-  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
     await check(ui)
   } finally {
@@ -131,9 +132,7 @@ for (const [whose, author, color] of [
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`on the ${surface}, the plan's labels ${surface === 'desktop' ? 'open their documents' : 'stay plain'}`, async ($, on) => {
     fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n')
-    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
-    try {
+    await withPane($, async ui => {
       // The markdown a label is drawn with: its words, then the ↗ alone a link to its file
       const markdownOf = async (words: string) => ((await ui.find({ type: 'Markdown', text: new RegExp(`^(\\*\\*)?${words}\\b`) })) as any)?.props
       expect(await ui.find({ type: 'Link' })).toBe(undefined)
@@ -150,10 +149,37 @@ for (const surface of ['terminal', 'desktop'] as const) {
         expect(await ui.find({ type: 'Markdown' })).toBe(undefined)
         expect(await ui.find({ type: 'Text', text: /↗|file:/ })).toBe(undefined)
         expect(await ui.find({ type: 'Text', text: /^Decisions$/ })).toBeDefined()
+        expect(await ui.find({ type: 'Text', text: /^Tasks$/ })).toBeDefined()
         expect(await ui.find({ type: 'Text', text: /^refunds$/ })).toBeDefined()
       }
-    } finally {
-      await ui.unmount()
-    }
+    }, surface)
   })
 }
+
+test('a document with nothing in it gives its label no ↗', async ($, on) => {
+  // tasks.md read, but empty: the Tasks line stays, without a link
+  fakeRepo(on, '', { completedTasks: 0, totalTasks: 0 }, ['refunds'], '', '## Decisions\n\n### D1. Provider API\n')
+  await withPane($, async ui => {
+    expect(await ui.find({ type: 'Text', text: /^Tasks$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Markdown', text: /tasks\.md/ })).toBe(undefined)
+    expect(await ui.find({ type: 'Markdown', text: /design\.md/ })).toBeDefined()
+  })
+})
+
+test('a design with no open question raises no warning', async ($, on) => {
+  fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n\n## Open Questions\n\nNone.\n')
+  await withPane($, async ui => {
+    expect(await ui.find({ type: 'Text', text: /open question/ })).toBe(undefined)
+    expect(await ui.find({ type: 'Text', text: /^\? $/ })).toBe(undefined)
+  })
+})
+
+test("a spec's name too long for its line is cut, its ↗ kept", async ($, on) => {
+  const long = 'refunds-with-a-name-far-too-long-for-the-pane'
+  fakeRepo(on, REVIEW[0], REVIEW[1], [long], '', '## Decisions\n\n### D1. Provider API\n')
+  await withPane($, async ui => {
+    const text: string = ((await ui.find({ type: 'Markdown', text: /^refunds-/ })) as any)?.props?.text ?? ''
+    expect(text).toMatch(/^refunds-with-a-[^ ]*… \[↗\]\(file:\/\/.+\/specs\/refunds-with-a-name-far-too-long-for-the-pane\/spec\.md\)$/)
+    expect(text.split(' [')[0]!.length).toBeLessThan(long.length)
+  })
+})

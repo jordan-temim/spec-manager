@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, artifactsFrom, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, mdText, moduleName, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
+import { absolute, artifactsFrom, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, mdText, moduleName, clip, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -480,6 +480,19 @@ describe('markdown links', () => {
   test("words keep Markdown's marks as written", () => {
     expect(mdText('add_user_auth')).toBe('add\\_user\\_auth')
     expect(mdText('a]b*c')).toBe('a\\]b\\*c')
+  })
+  test("words keep Markdown's opening bracket and backslash as written", () => {
+    expect(mdText('a[b\\c_d')).toBe('a\\[b\\\\c\\_d')
+  })
+  test("a file's URL keeps its escapes: only what fileUrl leaves, ( and ), is encoded", () => {
+    expect(mdHref(fileUrl('/repo/mes docs/a(1).md'))).toBe('file:///repo/mes%20docs/a%281%29.md')
+  })
+  test('words cut with "…" past their room', () => {
+    expect(clip('abcdef', 4)).toBe('abc…')
+    expect(clip('abcd', 4)).toBe('abcd')
+    // Counted by code points: an emoji at the cut is kept whole, never half of it
+    expect(clip('ab🙂cd', 4)).toBe('ab🙂…')
+    expect(clip('ab🙂c', 4)).toBe('ab🙂c')
   })
   test("a target's parentheses and spaces encoded", () => {
     expect(mdHref('file:///repo/a(1) b.md')).toBe('file:///repo/a%281%29%20b.md')

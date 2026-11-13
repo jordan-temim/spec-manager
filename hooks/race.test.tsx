@@ -334,21 +334,26 @@ test('a module opened during an overview refresh ends up read in full', async ($
 // The module shown dropped from those listed (gone between two looks): while `isOn`, the
 // view as read says so; with `isOnce`, only until the plugin's next write keeps it so
 const goneModule = (on: any, isOnce = false) => {
-  const gone = { isOn: false }
   on('state.get', async (_: unknown, e: any, next: (e: unknown) => any) => {
     const r = await next(e)
     if (!gone.isOn || e.key !== 'view' || !r?.value?.value) return r
     return { ...r, value: { ...r.value, value: { ...r.value.value, selected: '/repo/packages/gone', roots: [] } } }
   })
-  on('state.set', (_: unknown, e: { key: string }, next: (e: unknown) => unknown) => {
-    if (isOnce && e.key === 'view') gone.isOn = false
+  // What the first write after the view went missing kept: the module it was on
+  const gone = { isOn: false, kept: undefined as string | undefined }
+  on('state.set', (_: unknown, e: { key: string; value?: { selected?: string } }, next: (e: unknown) => unknown) => {
+    if (isOnce && gone.isOn && e.key === 'view') {
+      gone.kept = e.value?.selected
+      gone.isOn = false
+    }
     return next(e)
   })
   return gone
 }
 
 test('a module shown but no longer listed keeps the way back to the overview', async ($, on) => {
-  const gone = goneModule(on)
+  // Gone until the press writes the view: the press itself starts from the gone module
+  const gone = goneModule(on, true)
   const { clock, run, mount } = twoModules($, on)
   await run('catalogue')
   await clock.settle()
@@ -356,7 +361,7 @@ test('a module shown but no longer listed keeps the way back to the overview', a
   const ui = await mount()
   try {
     expect(await ui.find({ type: 'Text', text: /^gone · 2 other modules$/ })).toBeDefined()
-    gone.isOn = false
+    expect(gone.isOn).toBe(true)
     await ui.press({ key: 'modules:all' })
     expect(await ui.find({ type: 'Text', text: /^MODULES$/ })).toBeDefined()
   } finally {
@@ -375,6 +380,8 @@ test('a poll where nothing moved takes the pane off a module no longer listed', 
   await clock.advance(POLL_MS)
   await clock.settle()
   expect(gone.isOn).toBe(false)
+  // ... and that write did keep it on the gone module, for the next poll to correct
+  expect(gone.kept).toBe('/repo/packages/gone')
   // The poll after finds the files as they were: it settles on the overview all the same
   await clock.advance(POLL_MS)
   await clock.settle()

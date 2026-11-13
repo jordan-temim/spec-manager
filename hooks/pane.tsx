@@ -3,8 +3,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import { ALL, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
-import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
+import { ALL, clip, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
+import { POLL_MS, SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
 import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, GREEN, MUTED, NUMBER_D, RULE_SVG, TAB_H, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, numberSvg, stepperSvg, stepperWidth, turnColor } from './svg'
 import type { Change, HelpTab, Module, Progress, Task, Turn, View } from '../types'
 
@@ -17,6 +17,15 @@ const help = atom({ plugin: 'spec-manager', key: 'help' } as const, '' as '' | H
 
 // The help page, as in live-review: the OpenSpec cycle, each step numbered in the colour
 // of who takes it; what each mark of the pane means; the commands
+// The module view's insets, in columns: shared by the boxes that make them and by the
+// width a spec's name is left on its line
+const FRAME_PAD = 1 // a frame's padding, each side
+const FRAME_INSET = 2 * (1 + FRAME_PAD) // a frame's border and padding, both sides
+const CHANGE_INDENT = 1 // a change's block within its frame
+const FIELD_INDENT = 2 // a field within its change
+const LABEL_W = 11 // a field's label column
+const ARROW = ' ↗' // what a document link adds after its words
+
 const HELP_TABS: readonly (readonly [HelpTab, string])[] = [
   ['cycle', 'The cycle'],
   ['marks', 'Marks'],
@@ -209,7 +218,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
               </Box>
             ))}
           </Box>
-          <Text dimColor>It reads the openspec/ folders every 10 s, never the conversation.</Text>
+          <Text dimColor>It reads the openspec/ folders every {POLL_MS / 1000} s, never the conversation.</Text>
         </Box>
       ),
     }
@@ -335,7 +344,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       ) : (
         // As wide as the frame's inside (the pane less its border and padding): the
         // terminal's own width overran the pane and wrapped onto a second line
-        <Text dimColor>{'─'.repeat(Math.max(10, e.props.bodyColumns - 4))}</Text>
+        <Text dimColor>{'─'.repeat(Math.max(10, e.props.bodyColumns - FRAME_INSET))}</Text>
       )}
     </Box>
   )
@@ -345,9 +354,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // read heavy on a whole label. Opening it is the reader's move
   // One Markdown for the words and their ↗, set straight in its column: a Markdown in a
   // row of boxes beside a Text stood apart from it and widened the card past the pane
-  const docLink = (file: string | undefined, text: string, isBold = false) =>
+  // A Markdown wraps a long name onto a second line where a Text ends it in "…": the words
+  // are cut first, to `max` characters, the ↗ kept
+  const docLink = (file: string | undefined, text: string, isBold = false, max = Infinity) =>
     Markdown && file ? (
-      <Markdown text={`${isBold ? `**${mdText(text)}**` : mdText(text)} [↗](${mdHref(fileUrl(file))})`} dimColor={isBold} />
+      <Markdown text={`${isBold ? `**${mdText(clip(text, max))}**` : mdText(clip(text, max))} [↗](${mdHref(fileUrl(file))})`} dimColor={isBold} />
     ) : (
       <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
         {text}
@@ -356,8 +367,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
 
   // A label column, then its content; a label read from a document links to it
   const field = (label: string, content: any, color?: string, file?: string) => (
-    <Box flexDirection="row" paddingLeft={2}>
-      <Box width={11} flexShrink={0}>
+    <Box flexDirection="row" paddingLeft={FIELD_INDENT}>
+      <Box width={LABEL_W} flexShrink={0}>
         {file && !color ? docLink(file, label, true) : <Text bold dimColor={!color} color={color}>{label}</Text>}
       </Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>{content}</Box>
@@ -466,14 +477,20 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
           'Specs',
           <Box flexDirection="column">
             {specs.length === 0 && <Text dimColor>none</Text>}
-            {specs.map(s => (
-              <Box flexDirection="row">
-                <Box flexGrow={1} flexShrink={1} minWidth={0}>
-                  {docLink(s.file, s.name)}
+            {specs.map(s => {
+              const counts = ` ${s.requirements} req · ${s.scenarios} scen`
+              // What the line leaves the name: the frame, the indents, the label column,
+              // the counts and the ↗ taken off the pane's width
+              const room = e.props.bodyColumns - FRAME_INSET - CHANGE_INDENT - FIELD_INDENT - LABEL_W - counts.length - ARROW.length
+              return (
+                <Box flexDirection="row">
+                  <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                    {docLink(s.file, s.name, false, Math.max(8, room))}
+                  </Box>
+                  <Text dimColor>{counts}</Text>
                 </Box>
-                <Text dimColor> {s.requirements} req · {s.scenarios} scen</Text>
-              </Box>
-            ))}
+              )
+            })}
           </Box>,
         )}
         {decisions.length > 0 &&
@@ -519,7 +536,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   }
 
   const changeBlock = (change: Change) => (
-    <Box flexDirection="column" paddingLeft={1}>
+    <Box flexDirection="column" paddingLeft={CHANGE_INDENT}>
       <Box flexDirection="row" alignItems="center">
         <Box flexShrink={0} marginRight={1}>
           {tagOf(change)}
@@ -595,7 +612,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // mid grey: the theme's dimmed border all but vanished on the dark theme. On the
   // desktop a light wash fills it, unless cards inside carry their own
   const frame = (content: any, isWashed = true) => (
-    <Box flexDirection="column" borderStyle="round" borderColor={MUTED} backgroundColor={Svg && isWashed ? WASH : undefined} paddingX={1} paddingY={air(1)} marginBottom={1} overflow="hidden">
+    <Box flexDirection="column" borderStyle="round" borderColor={MUTED} backgroundColor={Svg && isWashed ? WASH : undefined} paddingX={FRAME_PAD} paddingY={air(1)} marginBottom={1} overflow="hidden">
       {content}
     </Box>
   )

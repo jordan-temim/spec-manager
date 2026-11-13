@@ -1,11 +1,16 @@
 // Spec Manager: a pane showing the OpenSpec changes of the repository, read from its files
 // alone. The hooks: the session's start and end, the /spec-manager command, the pane
 
+import { atom, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import { ALL, moduleName, partialMatches, resolveModule } from './model'
 import { PANE, POLL_MS, TITLE, handedOver, lastError, moveClock, openspecAppeared, refresh, select, sessionOf, sessions } from './load'
 import { renderPane } from './pane'
+import type { HelpTab } from '../types'
+
+// The same state as pane.tsx's: the state scan reads the atoms a file writes in its own consts
+const help = atom({ plugin: 'spec-manager', key: 'help' } as const, '' as '' | HelpTab)
 
 export const register: Register = on => {
   // A session that ends hands its state to the one that goes on in this process
@@ -63,6 +68,9 @@ export const register: Register = on => {
     const s = await sessionOf($)
     s.hasOpened = true
     await $.ui.open({ id: PANE, title: TITLE })
+    // The pane's own page, whatever was asked: a help page left open would hide the module
+    // the command opens, or the overview it brings back
+    await update($, help, () => '')
     if (e.args.trim() === '') {
       // Start over: look for the modules again and pick what to show as at session start
       s.found = undefined

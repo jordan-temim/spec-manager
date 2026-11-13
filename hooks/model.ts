@@ -205,6 +205,13 @@ export const fileUrl = (path: string) => {
   return `file://${slashed.startsWith('/') ? '' : '/'}${encodeURI(slashed).replace(/[?#]/g, c => encodeURIComponent(c))}`
 }
 
+// Words cut to `max` characters, the cut said by "…": what a Text's truncate-end does,
+// for a Markdown, which wraps instead. Counted by code points: an emoji at the cut stays whole
+export const clip = (text: string, max: number) => {
+  const chars = [...text]
+  return chars.length <= max ? text : `${chars.slice(0, Math.max(0, max - 1)).join('')}…`
+}
+
 // Markdown's own marks in words, escaped: a spec named add_user_auth stays as written
 export const mdText = (text: string) => text.replace(/[\\[\]*_`<>#]/g, c => `\\${c}`)
 // A Markdown link's target, its parentheses and spaces encoded: a path with a ( stays
