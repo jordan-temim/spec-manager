@@ -36,11 +36,11 @@ test('a spec edited in place shows its new counts at the next poll', async ($, o
       value: (DIRS[e.path] ?? []).map(([name, kind]) => ({ name, kind, size: 0, mtimeMs: mtime[`${e.path}/${name}`] ?? 0, isLink: false })),
     }
   })
-  on('fs.read', (_: unknown, e: { path: string }) => (e.path in files ? { value: files[e.path] } : { deny: 'ENOENT' }))
+  on('fs.read', (_: unknown, e: { path: string }) => (e.path in files ? { value: files[e.path]! } : { deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '' } }
+    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs' || flag === '--archived') return out({ specs: [], changes: [] })
     if (verb === 'status') {
       const paths = Object.fromEntries(['proposal', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${n}.md`] }]))
@@ -49,11 +49,11 @@ test('a spec edited in place shows its new counts at the next poll', async ($, o
     // A plan to review: its digest lists the spec with its counts
     return out({ changes: [{ name: 'add-refunds', completedTasks: 0, totalTasks: 3 }] })
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   const counts = async () => {
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
     const text = (await ui.find({ type: 'Text', text: /req ·/ }))?.text
     await ui.unmount()
     return text

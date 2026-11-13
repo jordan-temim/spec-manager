@@ -49,6 +49,8 @@ export const PHASE_LABEL = {
 export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Promise<RenderElement> {
   const elements = $.ui.resolve(e)
   const { Box, Text, Button } = elements
+  // Groups are written as column Boxes rather than `<>…</>`: a fragment builds the very
+  // same Box, but its children are typed narrower (no `cond && …`, no mapped list)
   // The terminal draws text: there the counts stand in for the bars, symbols for the
   // stepper. Asked by surface, since newer terminals carry an Svg that draws nothing
   const Svg = e.surface !== 'terminal' && 'Svg' in elements ? elements.Svg : undefined
@@ -404,38 +406,38 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       {stepper(change)}
 
       {change.phase === 'review' && (
-        <>
+        <Box flexDirection="column">
           {!isLight && planDigest(change)}
           {/* /opsx:apply writes no file until a task is checked: say so, for a long first task */}
           {/* What to type is the author's: someone else's plan says only whom it waits on */}
           {waitingOn(
             change,
             change.isMine ? (
-              <>
+              <Box flexDirection="column">
                 {hint('Review the plan, then /opsx:apply')}
                 {hint(
                   change.tasks.total === 0
                     ? 'tasks.md lists no task yet: nothing to apply until it does.'
                     : 'Already applying? This moves on once the first task is checked.',
                 )}
-              </>
+              </Box>
             ) : undefined,
           )}
-        </>
+        </Box>
       )}
 
       {change.phase === 'implementing' && (
-        <>
+        <Box flexDirection="column">
           {sectionBars(change)}
           {change.yourNext &&
             waitingOn(change, taskRow(change.yourNext, change.isMine ? BLUE : MUTED), change.yourLater)}
-        </>
+        </Box>
       )}
 
       {change.phase === 'ready' &&
         waitingOn(
           change,
-          <>
+          <Box flexDirection="column">
             {!isLight &&
               change.digest.specs.length > 0 &&
               hint(
@@ -443,7 +445,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                   change.digest.specs.map(s => s.name).join(' · '),
               )}
             {change.isMine && hint('/opsx:archive')}
-          </>,
+          </Box>,
         )}
 
       {change.aiNext && (
@@ -581,7 +583,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       <Box flexDirection="column">
         {brand}
         {frame(
-          <>
+          <Box flexDirection="column">
             {heading('MODULES', modules.length, (yours > 0 || ais > 0) && turnCounts(yours, ais))}
             {mine.length > 0 && caption('MINE')}
             {mine.map(m => card(m))}
@@ -591,7 +593,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
             {idle.map(row)}
             {failing.length > 0 && caption('OPENSPEC FAILED')}
             {failing.map(row)}
-          </>,
+          </Box>,
           false,
         )}
         {legend}
@@ -632,21 +634,21 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       {brand}
       {nav}
       {frame(
-        <>
+        <Box flexDirection="column">
           {heading('CHANGES', changes.length, changes.length > 0 && turnSummary(changes))}
           {moduleError && <Text color="error">openspec: {moduleError}</Text>}
           {changes.length === 0 && !moduleError && none}
           {changes.map((change, i) => (
-            <>
+            <Box flexDirection="column">
               {i > 0 && rule}
               {changeBlock(change)}
-            </>
+            </Box>
           ))}
-        </>,
+        </Box>,
       )}
 
       {frame(
-        <>
+        <Box flexDirection="column">
           {/* Not read (yet, or at all when openspec failed): no count, no "(none)" */}
           {isLight || moduleError
             ? heading('SPECS', isLight ? '…' : '?', undefined, true)
@@ -662,11 +664,11 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
               <Text dimColor> {spec.requirements} req</Text>
             </Box>
           ))}
-        </>,
+        </Box>,
       )}
 
       {frame(
-        <>
+        <Box flexDirection="column">
           {isLight || moduleError
             ? heading('ARCHIVED', isLight ? '…' : '?', undefined, true)
             : heading('ARCHIVED', archivedTotal, archivedTotal > 0 && chevron('block:archived', 'block:archived', isArchiveOpen, false), archivedTotal > 0 && !isArchiveOpen)}
@@ -681,7 +683,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
               <Text dimColor italic>+ {archivedTotal - archived.length} more</Text>
             </Box>
           )}
-        </>,
+        </Box>,
       )}
 
       {legend}

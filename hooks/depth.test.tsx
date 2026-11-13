@@ -23,7 +23,7 @@ const fakeRepo = (on: any) => {
   }))
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => ({
-    value: { exitCode: 0, stdout: e.argv[0] === 'git' ? '' : JSON.stringify({ changes: [], specs: [] }), stderr: '' },
+    value: { exitCode: 0, stdout: e.argv[0] === 'git' ? '' : JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
   }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
@@ -31,7 +31,7 @@ const fakeRepo = (on: any) => {
 test('finds modules up to 5 levels below the repository top, not deeper', async ($, on) => {
   fakeRepo(on)
   const run = (args: string) =>
-    $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+    $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   expect((await run('level5')).text).toContain('services/a/b/c/level5')
   expect((await run('level6')).text).toContain('No OpenSpec module matches')
 })

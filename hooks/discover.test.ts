@@ -46,9 +46,10 @@ test('a repository too large to search whole is cut short, and the footer says s
 
 test('where a large repository is cut does not depend on which listing answers first', async () => {
   // Modules spread past the limit, in sub-folders whose listings answer in any order
-  const tree: Record<string, string[]> = { '/repo': ['.git', 'big'], '/repo/big': [] }
+  const big: string[] = []
+  const tree: Record<string, string[]> = { '/repo': ['.git', 'big'], '/repo/big': big }
   for (let i = 0; i < 60; i++) {
-    tree['/repo/big'].push(`g${i}`)
+    big.push(`g${i}`)
     tree[`/repo/big/g${i}`] = Array.from({ length: 40 }, (_, j) => (j === 0 ? 'openspec' : `d${j}`))
   }
   const quick = await discover(repo(tree).$)

@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 // Sessions in one process: each in its own repository keeps its own modules and pane, and
 // one that goes on after /clear keeps its state
-const REPOS: Record<string, string> = { a: '/repo-a', b: '/repo-b' }
+const REPOS = { a: '/repo-a', b: '/repo-b' }
 const MODULES: Record<string, string> = { '/repo-a': 'paiement', '/repo-b': 'catalogue' }
 // Each module has one change of its own, named after it: what a pane shows tells whose it is.
 // Only from the module's own folder: openspec run anywhere else lists nothing
@@ -25,7 +25,7 @@ const fakeRepos = (on: any, session: () => { id: string; cwd: string }) => {
   const tree: Record<string, string[]> = Object.fromEntries(
     Object.values(REPOS).flatMap(repo => [
       [repo, ['.git', 'packages']],
-      [`${repo}/packages`, [MODULES[repo]]],
+      [`${repo}/packages`, [MODULES[repo]!]],
       [`${repo}/packages/${MODULES[repo]}`, ['openspec']],
     ]),
   )
@@ -41,9 +41,9 @@ const fakeRepos = (on: any, session: () => { id: string; cwd: string }) => {
       ? { changes: [{ name: change, completedTasks: 0, totalTasks: 0 }] }
       : { changes: [], specs: [] }
     const stdout = cmd === 'git' ? (verb === 'config' ? 'me@example.org\n' : '') : JSON.stringify(body)
-    return { value: { exitCode: 0, stdout, stderr: '' } }
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('session.end', (_: unknown, e: { sessionId: string }) => ({ sessionId: e.sessionId }))
   const opened: string[] = []
@@ -54,10 +54,10 @@ const fakeRepos = (on: any, session: () => { id: string; cwd: string }) => {
   return { clock, opened }
 }
 const run = async ($: any, args: string) =>
-  (await $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })).text
+  (await $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })).text
 // The first text of the pane matching `text`, drawn as the session now asking sees it
 const drawn = async ($: any, text: RegExp) => {
-  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
     return (await ui.find({ type: 'Text', text }))?.text
   } finally {
@@ -67,7 +67,7 @@ const drawn = async ($: any, text: RegExp) => {
 
 test('two sessions in one process keep their own modules', async ($, on) => {
   // The session the next call comes from
-  let current = 'a'
+  let current: keyof typeof REPOS = 'a'
   const { clock, opened } = fakeRepos(on, () => ({ id: current, cwd: REPOS[current] }))
 
   await $.session.start({ cwd: REPOS.a, surface: 'desktop', isInteractive: true })
@@ -127,7 +127,7 @@ test('after /clear, the pane goes on with its state and its countdown', async ($
 // One session ends while another goes on in the same process: what goes with the first
 // leaves the second's modules, pane and poll as they were
 test('a session that ends leaves the other one as it was', async ($, on) => {
-  let current = 'a'
+  let current: keyof typeof REPOS = 'a'
   const { clock } = fakeRepos(on, () => ({ id: current, cwd: REPOS[current] }))
   const countdown = async () => (await drawn($, /refresh in/))?.match(/refresh in \d+s/)?.[0]
 

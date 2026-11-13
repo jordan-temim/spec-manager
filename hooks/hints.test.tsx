@@ -20,8 +20,8 @@ const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; tota
   )
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : author, stderr: '' } }
+    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : author, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs' || flag === '--archived') return out({ specs: [], changes: [] })
     if (verb === 'status') {
       const paths = Object.fromEntries(['proposal', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${CHANGE}/${n}.md`] }]))
@@ -35,8 +35,8 @@ const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; tota
 }
 // paiement opened, `check` run on its pane, the pane unmounted whatever the check found
 const withPane = async ($: any, check: (ui: any) => Promise<void>) => {
-  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
-  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
     await check(ui)
   } finally {
@@ -131,8 +131,8 @@ for (const [whose, author, color] of [
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`on the ${surface}, the plan's labels ${surface === 'desktop' ? 'open their documents' : 'stay plain'}`, async ($, on) => {
     fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n')
-    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
     try {
       // The markdown a label is drawn with: its words, then the ↗ alone a link to its file
       const markdownOf = async (words: string) => ((await ui.find({ type: 'Markdown', text: new RegExp(`^(\\*\\*)?${words}\\b`) })) as any)?.props

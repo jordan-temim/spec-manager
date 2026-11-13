@@ -18,19 +18,19 @@ test('the clock moves only while the pane is shown', async ($, on) => {
     return { value: (e.path === '/repo' ? ['.git', 'openspec'] : []).map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) }
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
-  on('process.run', () => ({ value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '' } }))
-  on('command.register', () => ({ value: undefined }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   // Every write of the pane's state, seen on its way to the kit's own store
   let writes = 0
-  on('state.set', (_: unknown, e: unknown, next: (e: unknown) => unknown) => {
+  on('state.set', (_, e, next) => {
     writes++
     return next(e)
   })
   on('ui.panes', () => ({ value: [{ id: 'spec-manager', title: 'Spec Manager', isShown, isFocused: false, isPlaced: true }] }))
   const footer = async () => {
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
     const text = (await ui.find({ type: 'Text', text: /refresh in/ }))?.text ?? ''
     await ui.unmount()
     return text

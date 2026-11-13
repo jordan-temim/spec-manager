@@ -25,8 +25,8 @@ test('a module opened from the overview shows its specs and archives as loading 
   const released = new Promise<void>(resolve => (release = resolve))
   on('process.run', async (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '' } }
+    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs') {
       await released
       return out({ specs: [{ id: 'refunds', requirementCount: 3 }] })
@@ -38,11 +38,11 @@ test('a module opened from the overview shows its specs and archives as loading 
     if (verb === 'status') return out({ changes: [] })
     return out({ changes: [{ name: 'pay-v2', completedTasks: 0, totalTasks: 0 }] })
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
-  const run = (args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+  const run = (args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   const pane = () =>
-    $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
 
   await run('all')
   await clock.settle()

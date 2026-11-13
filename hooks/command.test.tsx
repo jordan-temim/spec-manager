@@ -2,6 +2,10 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { POLL_MS } from './load'
 
+// The runner's real timers, which the engine's types leave out (their lib is es2023 alone)
+declare function setTimeout(callback: (...args: unknown[]) => void, ms: number): number
+declare function clearTimeout(timer: number | undefined): void
+
 // What /spec-manager <module> answers: an ambiguous fragment, a module made since the last
 // look, "all" with a single module
 // `beforeList` lets a test hold a listing where it wants
@@ -21,9 +25,9 @@ const fakeRepo = (on: any, modules: string[], beforeList: (path: string) => Prom
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const stdout = e.argv[0] === 'git' ? (e.argv[1] === 'config' ? 'me@example.org\n' : '') : JSON.stringify({ changes: [], specs: [] })
-    return { value: { exitCode: 0, stdout, stderr: '' } }
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   return clock
@@ -44,7 +48,7 @@ const reach = async (point: Promise<void>, what: string) => {
 // as a repository of one module draws it). Anything else fails the test. (Every
 // /spec-manager opens the pane, whatever it picks: what it shows is what changes)
 const shownModule = async ($: any) => {
-  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
     if (await ui.find({ type: 'Text', text: /^MODULES$/ })) return 'overview'
     const header = (await ui.find({ type: 'Text', text: /^packages\/\S+ · \d+ other modules?$/ }))?.text
@@ -56,7 +60,7 @@ const shownModule = async ($: any) => {
   }
 }
 const run = async ($: any, args: string) =>
-  (await $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })).text
+  (await $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })).text
 
 test('a fragment in several module names opens none and lists them', async ($, on) => {
   const clock = fakeRepo(on, ['payments', 'payroll', 'catalogue'])

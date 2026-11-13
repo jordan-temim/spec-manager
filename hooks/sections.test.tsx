@@ -33,7 +33,7 @@ const fakeRepo = (on: any, tasks = TASKS) => {
   on('fs.read', (_: unknown, e: { path: string }) => (e.path === `${CHANGE}/tasks.md` ? { value: tasks } : { deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } })
+    const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n')
     const paths = Object.fromEntries(['proposal', 'specs', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${n}.md`] }]))
     if (verb === 'status') return out(JSON.stringify({ changes: [{ changeName: 'add-refunds', artifactPaths: paths }] }))
@@ -47,12 +47,12 @@ const fakeRepo = (on: any, tasks = TASKS) => {
 // A section's chevron: the module's path, the change, the section's number
 const sectionKey = (num: number) => `section:${MODULE}:add-refunds:${num}`
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
-const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
+const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
 // The paiement module open on a surface, and whether a text is drawn on it
 const mount = async ($: any, on: any, surface: 'terminal' | 'desktop', tasks = TASKS) => {
   fakeRepo(on, tasks)
-  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
   const shown = async (text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
   return { ui, shown }

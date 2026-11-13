@@ -38,7 +38,7 @@ const fakeRepo = (on: any, dirs = DIRS, files = FILES, totalTasks = 0, status?: 
   on('fs.read', (_: unknown, e: { path: string }) => (e.path in files ? { value: files[e.path] } : { deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'unknown command' : '' } })
+    const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'unknown command' : '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : '')
     if (verb === 'status') return status === undefined ? out('', 1) : out(JSON.stringify(status))
     if (flag === '--specs' || flag === '--archived') return out(JSON.stringify({ specs: [], changes: [] }))
@@ -48,7 +48,7 @@ const fakeRepo = (on: any, dirs = DIRS, files = FILES, totalTasks = 0, status?: 
 }
 
 // The change folder holding the whole plan: its design and its tasks beside the proposal
-const PLAN_DIRS = { ...DIRS, [CHANGE]: [...DIRS[CHANGE], ['design.md', 'file'], ['tasks.md', 'file']] as [string, 'dir' | 'file'][] }
+const PLAN_DIRS = { ...DIRS, [CHANGE]: [...DIRS[CHANGE]!, ['design.md', 'file'], ['tasks.md', 'file']] as [string, 'dir' | 'file'][] }
 // ... and what those two hold: a decision, two tasks not started
 const PLAN_FILES = {
   ...FILES,
@@ -71,14 +71,14 @@ const allDone = (specs?: string[]) => ({
 })
 // paiement opened, `check` run on its pane on a surface, unmounted whatever the check found
 const withPane = async ($: any, surface: 'terminal' | 'desktop', check: (ui: any) => Promise<void>) => {
-  const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
     await check(ui)
   } finally {
     await ui.unmount()
   }
 }
-const open = ($: any) => $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+const open = ($: any) => $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 test('when openspec status fails, the steps come from the change folder', async ($, on) => {
   fakeRepo(on)

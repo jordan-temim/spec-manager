@@ -20,9 +20,9 @@ const session = (on: any, dirs: Record<string, string[]>, opened: string[], list
     return { value: (dirs[e.path] ?? []).map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) }
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
-  on('process.run', () => ({ value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '' } }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   // The engine's own session start and command registry, beneath the plugin
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', (_: unknown, e: { id: string }) => {
     opened.push(e.id)
@@ -43,7 +43,7 @@ test('no pane at session start in a repository without openspec/', async ($, on)
   expect(listed).toContain('/repo')
   expect(opened).toEqual([])
   // /spec-manager still opens it, to say there is nothing to show
-  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'user' }, presentation: {} } as any)
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
   expect(opened).toEqual(['spec-manager'])
 })
@@ -68,7 +68,7 @@ test('without openspec/, the tree is not walked at every poll, and an openspec i
   expect(opened).toEqual([])
 
   // `openspec init` at the repository top: the next poll finds it and opens the pane
-  dirs['/repo'] = [...dirs['/repo'], 'openspec']
+  dirs['/repo'] = [...dirs['/repo']!, 'openspec']
   await clock.advance(POLL_MS)
   await clock.settle()
   expect(opened).toEqual(['spec-manager'])
@@ -99,7 +99,7 @@ test('an error that has passed leaves the pane, even with no module to read', as
   let isReadable = false
   const clock = session(on, { '/repo': ['.git', 'src'] }, [], [], () => (isReadable ? { value: '/repo' } : { deny: 'folder not readable' }))
   const pane = async () => {
-    const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
     try {
       return (await ui.find({ type: 'Box' }))?.text ?? (await ui.find({ type: 'Text' }))?.text ?? ''
     } finally {

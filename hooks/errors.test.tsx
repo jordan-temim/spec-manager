@@ -9,7 +9,7 @@ const DIRS: Record<string, string[]> = {
   '/repo/packages/catalogue': ['openspec'],
 }
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
-const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
+const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
 // What goes wrong, by folder: `isBroken`, openspec fails there; `isMissing`, openspec is
 // not installed at all; `notJson`, openspec list there prints a notice in place of JSON
@@ -28,16 +28,16 @@ const fakeRepo = (on: any, { isBroken = () => false, isMissing = false, notJson 
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
     const [cmd, verb, flag] = e.argv
     const cwd = e.init?.cwd ?? ''
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '' } }
+    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (isMissing) return { deny: 'spawn openspec ENOENT' }
-    if (verb === 'list' && flag === '--json' && notJson(cwd)) return { value: { exitCode: 0, stdout: 'A new version of openspec is available\n', stderr: '' } }
-    if (isBroken(cwd)) return { value: { exitCode: 1, stdout: '', stderr: 'config.yaml: bad schema' } }
+    if (verb === 'list' && flag === '--json' && notJson(cwd)) return { value: { exitCode: 0, stdout: 'A new version of openspec is available\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    if (isBroken(cwd)) return { value: { exitCode: 1, stdout: '', stderr: 'config.yaml: bad schema', isStdoutTruncated: false, isStderrTruncated: false } }
     const body = flag === '--specs' || flag === '--archived' || verb === 'status' ? { changes: [], specs: [] } : { changes: [{ name: 'pay-v2', completedTasks: 0, totalTasks: 0 }] }
-    return { value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } }
+    return { value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
-const run = ($: any, args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+const run = ($: any, args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 // The pane on a surface, `check` run on it, unmounted whatever the check found
 const withPane = async ($: any, surface: 'terminal' | 'desktop', check: (ui: any) => Promise<void>) => {

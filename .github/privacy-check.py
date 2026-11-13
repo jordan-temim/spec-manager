@@ -61,7 +61,11 @@ def listed(kind):
     for note in notes:
         m = pattern.match(note)
         if m:
-            found.setdefault(m.group(1), set()).update(items_of(" ".join(m.group(2).split())))
+            body = " ".join(m.group(2).split())
+            # Since 2.1.323 a hooks line may end on the key its matchers default to,
+            # "(default matcher key: plugin)": about the line, not a hook of its own
+            body = re.sub(r"\s*\(default matcher key: [\w.-]+\)$", "", body)
+            found.setdefault(m.group(1), set()).update(items_of(body))
         elif note.startswith("./") and f" {kind}:" in note:
             sys.exit(f"privacy check: a module's '{kind}:' note does not read as one: {note[:120]}")
     if not found:

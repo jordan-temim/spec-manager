@@ -54,7 +54,7 @@ export function parseTasks(markdown: string): { sections: Section[]; open: Task[
   for (const line of unix(markdown).split('\n')) {
     const heading = line.match(/^##\s+(\d+)\.\s+(.+)$/)
     if (heading) {
-      section = { num: heading[1], title: heading[2].trim(), done: 0, total: 0, tasks: [] }
+      section = { num: heading[1]!, title: heading[2]!.trim(), done: 0, total: 0, tasks: [] }
       sections.push(section)
       continue
     }
@@ -70,10 +70,10 @@ export function parseTasks(markdown: string): { sections: Section[]; open: Task[
     // `1.2 Do it`, `1.2. Do it` or `3. Do it`: the id without its closing dot. A bare number
     // is the task's own words ("3 retries at most"), and so is a decimal that is not one of
     // its section's ids ("2.5 seconds at most" under section 1)
-    const [, found = '', after = box[2]] = box[2].match(/^(\d+(?:\.\d+)+|\d+(?=\.))\.?\s+(.+)$/) ?? []
+    const [, found = '', after = box[2]!] = box[2]!.match(/^(\d+(?:\.\d+)+|\d+(?=\.))\.?\s+(.+)$/) ?? []
     const isId = found !== '' && (!found.includes('.') || !section || found.startsWith(`${section.num}.`))
     const id = isId ? found : ''
-    const rest = isId ? after : box[2]
+    const rest = isId ? after : box[2]!
     const isUserAction = USER_ACTION.test(rest)
     const text = rest.replace(USER_ACTION, '').replace(/[`*]/g, '').trim()
     if (section) {
@@ -161,16 +161,16 @@ export function whyLine(proposal: string): string | undefined {
 // Decision titles (`### D1. Title`) and the bullets under `## Open Questions` of design.md
 export function parseDesign(markdown: string): { decisions: string[]; openQuestions: string[] } {
   const design = unix(markdown)
-  const decisions = [...design.matchAll(/^### (D\d+)\.\s+(.+)$/gm)].map(m => `${m[1]} ${m[2].replace(/[`*]/g, '').trim()}`)
+  const decisions = [...design.matchAll(/^### (D\d+)\.\s+(.+)$/gm)].map(m => `${m[1]} ${m[2]!.replace(/[`*]/g, '').trim()}`)
   const section = design.split(/^## Open Questions\s*$/im)[1]?.split(/^## /m)[0] ?? ''
   // Within one line: a lone `-` or `1.` takes nothing from the line below
   const bullets = [...section.matchAll(/^([ \t]*)(?:[-*]|\d+\.)[ \t]+(.+)$/gm)]
   // The questions are the outermost bullets: those under one ("- Stripe", "- Adyen" under
   // "- Which provider?") are its options, not questions of their own
-  const outer = Math.min(...bullets.map(m => m[1].length))
+  const outer = Math.min(...bullets.map(m => m[1]!.length))
   const openQuestions = bullets
-    .filter(m => m[1].length === outer)
-    .map(m => m[2].replace(/[`*]/g, '').trim())
+    .filter(m => m[1]!.length === outer)
+    .map(m => m[2]!.replace(/[`*]/g, '').trim())
     .filter(q => !NO_QUESTION.test(q))
   return { decisions, openQuestions }
 }

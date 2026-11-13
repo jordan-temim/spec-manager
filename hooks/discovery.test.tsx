@@ -26,9 +26,9 @@ const bigRepo = (on: any, tree: (path: string) => string[], { isSlow = false, op
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => ({
-    value: { exitCode: 0, stdout: e.argv[0] === 'git' ? '' : JSON.stringify({ changes: [], specs: [] }), stderr: '' },
+    value: { exitCode: 0, stdout: e.argv[0] === 'git' ? '' : JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
   }))
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => {
     seen.opened++
@@ -41,7 +41,7 @@ test('the search lists a few folders at a time, however deep the tree', async ($
   // Two levels of ten: a limit per level would let ten times ten run at once
   const ten = Array.from({ length: 10 }, (_, i) => `d${i}`)
   const { clock, seen } = bigRepo(on, path => (/^\/repo\/big(\/d\d+)?$/.test(path) ? ten : []), { isSlow: true })
-  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'user' }, presentation: {} })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
   expect(seen.listings).toBeGreaterThan(100)
   // Several at once, never more than four

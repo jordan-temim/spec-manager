@@ -20,7 +20,7 @@ const repo = (on: any, git: Git) => {
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '' } })
+    const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (cmd === 'git' && verb === 'config') return git.email ? out(`${git.email}\n`) : out('', 1)
     if (cmd === 'git') return out(git.author)
     const changes = (names: string[]) => out(JSON.stringify({ changes: names.map(name => ({ name, completedTasks: 0, totalTasks: 0 })) }))
@@ -31,10 +31,10 @@ const repo = (on: any, git: Git) => {
   on('ui.open', () => ({ value: { isPlaced: true } }))
   return clock
 }
-const run = ($: any, args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+const run = ($: any, args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 // The pane, `check` run on it, unmounted whatever the check found
 const withPane = async ($: any, check: (ui: any) => Promise<void>) => {
-  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+  const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
     await check(ui)
   } finally {

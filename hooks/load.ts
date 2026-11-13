@@ -5,7 +5,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import { ALL, absolute, artifactsFrom, artifactsFromFiles, moduleName, ownerOf, parseDesign, parseTasks, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
-import type { Artifact, Change, Module, Root, View } from '../types'
+import type { Artifact, Change, Digest, Module, Root, View } from '../types'
 
 export const PANE = 'spec-manager'
 export const TITLE = 'Spec Manager'
@@ -119,7 +119,7 @@ export async function discover($: EngineInterface): Promise<{ base: string; insi
     const listings = await pool(level, AT_ONCE, folder => $.fs.list(folder.dir).catch(() => []))
     const next: Folder[] = []
     level.forEach((folder, i) => {
-      const entries = listings[i]
+      const entries = listings[i] ?? []
       if (entries.some(e => e.kind === 'dir' && e.name === 'openspec')) modules.push(folder)
       entries
         .filter(entry => entry.kind === 'dir' && !entry.name.startsWith('.') && !SKIPPED_DIRS.has(entry.name))
@@ -128,7 +128,7 @@ export async function discover($: EngineInterface): Promise<{ base: string; insi
     level = depth > 0 ? next : []
   }
   const byPlace = (a: Folder, b: Folder) => {
-    for (let i = 0; i < Math.min(a.place.length, b.place.length); i++) if (a.place[i] !== b.place[i]) return a.place[i] - b.place[i]
+    for (let i = 0; i < Math.min(a.place.length, b.place.length); i++) if (a.place[i] !== b.place[i]) return a.place[i]! - b.place[i]!
     return a.place.length - b.place.length
   }
   const paths = modules.sort(byPlace).map(folder => folder.dir)
@@ -298,7 +298,7 @@ export async function pool<T, R>(items: T[], limit: number, work: (item: T) => P
   const worker = async () => {
     while (next < items.length) {
       const i = next++
-      results[i] = await work(items[i])
+      results[i] = await work(items[i] as T)
     }
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
@@ -337,7 +337,7 @@ export async function loadRoot($: EngineInterface, path: string, full = true): P
     const specPaths = specPathsOf.get(one.name) ?? files?.specPaths ?? []
     const [markdown, digest, owned] = await Promise.all([
       $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
-      full ? loadDigest($, changeRoot, specPaths) : { specs: [], decisions: [], openQuestions: [] },
+      full ? loadDigest($, changeRoot, specPaths) : ({ specs: [], decisions: [], openQuestions: [] } as Digest),
       ownership($, path, changeRoot),
     ])
     const { sections, open } = parseTasks(markdown)
@@ -410,7 +410,7 @@ export function refresh($: EngineInterface, s: Session, force = false, rediscove
     }
     return s.running
   }
-  const current: Promise<void> = (async () => {
+  const run = async () => {
     try {
       await refreshOnce($, s, force, rediscover)
       while (s.isPending) {
@@ -424,7 +424,8 @@ export function refresh($: EngineInterface, s: Session, force = false, rediscove
       // here on starts anew rather than waiting on this one, finished, and being dropped
       if (s.running === current) s.running = undefined
     }
-  })()
+  }
+  const current = run()
   s.running = current
   return current
 }
@@ -473,7 +474,7 @@ export async function refreshOnce($: EngineInterface, s: Session, force: boolean
       s.cache.delete(p)
       s.readAt.delete(p)
     }
-    paths.forEach((p, i) => s.signatures.set(p, sigs[i]))
+    paths.forEach((p, i) => s.signatures.set(p, sigs[i]!))
     // Nothing moved, and the module shown still among them (else it settles below)
     if (stale.length === 0 && gone.length === 0 && selected === wanted) {
       // Say when it was last checked, and that this look went through
@@ -484,7 +485,7 @@ export async function refreshOnce($: EngineInterface, s: Session, force: boolean
     await pool(stale, AT_ONCE, p => readKept($, s, p, p === selected))
     const all = paths.map(p => s.cache.get(p)).filter((root): root is Root => root !== undefined)
     const failed = all.filter(root => root.error)
-    if (failed.length > 0 && failed.length === all.length) throw new Error(failed[0].error)
+    if (failed.length > 0 && failed.length === all.length) throw new Error(failed[0]!.error)
     const modules = all.map(root => summarize(base, root))
     const roots = all.filter(root => root.path === selected)
     // A module picked while this read keeps its pick: select() and loadSelected own its roots

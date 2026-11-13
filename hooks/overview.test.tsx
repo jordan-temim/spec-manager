@@ -52,20 +52,20 @@ const fakeRepo = (on: any) => {
   }))
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
-    if (e.argv[0] === 'git') return { value: { exitCode: 0, stdout: git(e.argv), stderr: '' } }
+    if (e.argv[0] === 'git') return { value: { exitCode: 0, stdout: git(e.argv), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     const [, verb, flag] = e.argv
     const answers = OPENSPEC[e.init?.cwd ?? ''] ?? {}
     const body = flag === '--specs' ? { specs: [] } : flag === '--archived' ? { changes: [] } : answers[verb ?? '']
-    return { value: { exitCode: 0, stdout: JSON.stringify(body ?? { changes: [] }), stderr: '' } }
+    return { value: { exitCode: 0, stdout: JSON.stringify(body ?? { changes: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
 }
 
 const runCommand = ($: any, args: string) =>
-  $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+  $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
-const props = { title: 'OpenSpec', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
+const props = { title: 'OpenSpec', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
 test('at the repo top, the overview lists both modules and a press opens one', async ($, on) => {
   fakeRepo(on)

@@ -5,7 +5,7 @@ import { DISCOVER_EVERY_MS, POLL_MS } from './load'
 // What a refresh reads again, and how much at once. A repository of several modules,
 // each with one change; every openspec and git run is counted, by folder
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
-const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
+const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
 const fakeRepo = (on: any, names: string[]) => {
   const clock = mock.clock(on)
@@ -54,14 +54,14 @@ const fakeRepo = (on: any, names: string[]) => {
       else reading.set(cwd, left)
     }
     const [cmd, verb, flag] = e.argv
-    const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'bad schema' : '' } })
+    const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'bad schema' : '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n')
     if (broken.has(cwd)) return out('', 1)
     if (flag === '--specs' || flag === '--archived' || verb === 'status') return out(JSON.stringify({ changes: [], specs: [] }))
     const name = cwd.split('/').pop()
     return out(JSON.stringify({ changes: [{ name: `${name}-change`, completedTasks: 0, totalTasks: 0 }] }))
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   const openspecIn = (module: string) => runs.filter(r => r.argv[0] === 'openspec' && r.cwd === `/repo/packages/${module}`).length
@@ -81,7 +81,7 @@ const fakeRepo = (on: any, names: string[]) => {
     maxModules: () => maxModules,
   }
 }
-const run = ($: any, args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+const run = ($: any, args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
 const poll = async (clock: any) => {
   await clock.advance(POLL_MS)
   await clock.settle()

@@ -10,9 +10,9 @@ const session = (on: any, dirs: Record<string, string[]>, opened: string[]) => {
     value: (dirs[e.path] ?? []).map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })),
   }))
   on('fs.read', () => ({ deny: 'ENOENT' }))
-  on('process.run', () => ({ value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '' } }))
+  on('process.run', () => ({ value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
   // The engine's own session start and command registry, beneath the plugin
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', (_: unknown, e: { id: string }) => {
     opened.push(e.id)

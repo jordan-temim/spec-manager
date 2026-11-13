@@ -2,6 +2,10 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { DISCOVER_EVERY_MS, POLL_MS } from './load'
 
+// The runner's real timers, which the engine's types leave out (their lib is es2023 alone)
+declare function setTimeout(callback: (...args: unknown[]) => void, ms: number): number
+declare function clearTimeout(timer: number | undefined): void
+
 // /spec-manager <module> typed while the session's first look for modules is still
 // walking the tree: the command waits for it instead of finding nothing
 const MODULE = '/repo/packages/paiement'
@@ -46,9 +50,9 @@ const fakeRepo = (on: any) => {
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb] = e.argv
     const stdout = cmd === 'git' ? (verb === 'config' ? 'me@example.org\n' : '') : JSON.stringify({ changes: [], specs: [] })
-    return { value: { exitCode: 0, stdout, stderr: '' } }
+    return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   return { release, isHeld, walks }
@@ -64,7 +68,7 @@ test('/spec-manager <module> during the first look for modules waits for it', as
     // The session's first look is under way, held in the middle of its walk
     await reach(isHeld, 'the first walk held')
     let isAnswered = false
-    answer = $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+    answer = $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
     void answer.then(() => (isAnswered = true))
     // Real time for a command that would not wait to answer, its own walk included (which,
     // only the first being held, would go through)
@@ -111,20 +115,20 @@ const twoModules = ($: any, on: any, options: TwoModules = {}) => {
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', async (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
     const [cmd, verb, flag] = e.argv
-    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '' } }
+    const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs' || flag === '--archived' || verb === 'status') return out({ changes: [], specs: [] })
     const dir = e.init?.cwd ?? ''
     const name = changeIn(dir)
     await options.beforeOpenspec?.(dir)
     return out({ changes: [{ name, completedTasks: 0, totalTasks: 0 }] })
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
-  const run = (args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'user' }, presentation: {} })
+  const run = (args: string) => $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   const mount = () =>
-    $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
+    $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   return { clock, run, mount }
 }
 

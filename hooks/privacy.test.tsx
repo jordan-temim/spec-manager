@@ -49,14 +49,14 @@ const session = (on: any): { seen: Seen; clock: ReturnType<typeof mock.clock> } 
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     seen.runs.push([...e.argv])
     const [cmd, verb, flag] = e.argv
-    const json = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '' } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n', stderr: '' } }
+    const json = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (verb === 'status') return json({ changes: [{ changeName: 'add-refunds', artifactPaths: ARTIFACTS }] })
     if (flag === '--specs') return json({ specs: [] })
     if (flag === '--archived') return json({ changes: [] })
     return json({ changes: [{ name: 'add-refunds', completedTasks: 1, totalTasks: 2, lastModified: '2026-10-15T10:00:00Z' }] })
   })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   // The ways a plugin could reach the conversation, or send anything out: each is
@@ -71,13 +71,13 @@ const session = (on: any): { seen: Seen; clock: ReturnType<typeof mock.clock> } 
 }
 
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
-const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } as const
+const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
 test('a whole session reads OpenSpec files and git only, and nothing of the conversation', async ($, on) => {
   const { seen, clock } = session(on)
   await $.session.start({ cwd: REPO, surface: 'desktop', isInteractive: true })
   await clock.settle()
-  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
+  await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
     expect(await ui.find({ type: 'Text', text: /add-refunds/ })).toBeDefined()

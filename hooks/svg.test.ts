@@ -15,7 +15,7 @@ describe('card dots', () => {
     expect(done).toContain(`fill="${MUTED}"`)
     expect(upcoming).toContain('fill="none"')
     expect(upcoming).toContain(`stroke="${TODO_STROKE}"`)
-    expect(done + upcoming).not.toContain(CLAY)
+    expect(`${done}${upcoming}`).not.toContain(CLAY)
   })
 
   test('a current step outside the dots colours none of them', () => {
@@ -67,7 +67,7 @@ describe('stepper', () => {
     expect(current).toContain(`fill="${CLAY}"`)
     expect(upcoming).toContain(`fill="${TODO_FILL}"`)
     expect(upcoming).toContain(`stroke="${TODO_STROKE}"`)
-    expect(done + upcoming).not.toContain(CLAY)
+    expect(`${done}${upcoming}`).not.toContain(CLAY)
   })
 
   test('with no current step, or none at all, a plain SVG with no actor colour', () => {
