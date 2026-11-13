@@ -5,13 +5,35 @@ import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { ALL, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
 import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
-import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, GREEN, MUTED, RULE_SVG, TAB_H, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
-import type { Change, Module, Progress, Task, Turn, View } from '../types'
+import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, GREEN, MUTED, NUMBER_D, RULE_SVG, TAB_H, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, numberSvg, stepperSvg, stepperWidth, turnColor } from './svg'
+import type { Change, HelpTab, Module, Progress, Task, Turn, View } from '../types'
 
 // The same state as load.ts's: the state scan reads the atoms a file writes in its own consts
 const view = atom({ plugin: 'spec-manager', key: 'view' } as const, { roots: [], modules: [] } as View)
 // Sections the reader opened or closed; any other one is open only while it is the current one
 const expanded = atom({ plugin: 'spec-manager', key: 'expanded' } as const, {} as Record<string, boolean>)
+// The help page's tab while it is open; '' while the pane shows the modules
+const help = atom({ plugin: 'spec-manager', key: 'help' } as const, '' as '' | HelpTab)
+
+// The help page, as in live-review: the OpenSpec cycle, each step numbered in the colour
+// of who takes it; what each mark of the pane means; the commands
+const HELP_TABS: readonly (readonly [HelpTab, string])[] = [
+  ['cycle', 'The cycle'],
+  ['marks', 'Marks'],
+  ['commands', 'Commands'],
+]
+const HELP_CYCLE: readonly (readonly [Turn, string, string])[] = [
+  ['ai', '/opsx:propose', 'The AI writes the proposal, the specs, the design and the tasks.'],
+  ['you', 'You review the plan', 'Open questions first, then /opsx:apply.'],
+  ['ai', 'The AI builds', 'It checks the tasks off; the green bar moves.'],
+  ['you', 'Your actions on the way', 'A ● task (a key, an account) waits on you.'],
+  ['you', '/opsx:archive', "Every task checked: you close the change, its specs join the module's."],
+]
+const HELP_COMMANDS: readonly (readonly [string, string])[] = [
+  ['/spec-manager', 'Opens the pane, or brings it back'],
+  ['/spec-manager <module>', 'Opens one module, by its name or the end of its path'],
+  ['/spec-manager all', 'Back to every module'],
+]
 
 export const clock = (ms: number) => {
   const d = new Date(ms)
@@ -62,8 +84,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // blank rows that only give the desktop some air
   const air = (rows: number) => (Svg ? rows : rows - 1)
   // On the terminal, which has no SVG, the wordmark is text: the three steps, then the words
-  const brand = (
-    <Box marginBottom={1} flexDirection="row" justifyContent="flex-end">
+  const logo = (
+    <Box flexDirection="row" justifyContent="flex-end" flexGrow={1}>
       {Svg ? (
         <Svg source={brandSvg()} alt="Spec Manager" width={BRAND_W} height={BRAND_H} />
       ) : (
@@ -73,10 +95,17 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
           <Text color={CLAY}>●</Text>
           <Text dimColor>─</Text>
           <Text color={BLUE}>○ </Text>
-          <Text bold color={CLAY}>spec</Text>
+          <Text bold color={GREEN}>spec</Text>
           <Text> manager</Text>
         </Text>
       )}
+    </Box>
+  )
+  // The way to the help page on the left, the logo on the right
+  const brand = (
+    <Box marginBottom={1} flexDirection="row" alignItems="center">
+      <Button key="help:open" label="? Help" variant="secondary" onPress={() => update($, help, () => 'cycle')} />
+      {logo}
     </Box>
   )
   // What the two tags mean: the kind of the next step, not who is acting right now
@@ -87,10 +116,114 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   )
   const { roots, modules, selected, error, updatedAt, now } = await read($, view)
   const opened = await read($, expanded)
+  const helpTab = await read($, help)
   const session = await sessionOf($)
   // SPECS and ARCHIVED start closed, heading and count only: a long list took the pane
   const areSpecsOpen = opened['block:specs'] ?? false
   const isArchiveOpen = opened['block:archived'] ?? false
+
+  // The help page in place of the pane's own: a way back, the tabs, the open tab's body
+  if (helpTab) {
+    const card = (key: string, content: any) => (
+      <Box key={key} flexDirection="row" columnGap={1} borderStyle={Svg ? 'round' : undefined} borderColor={MUTED} backgroundColor={Svg ? WASH : undefined} paddingX={Svg ? 1 : 0}>
+        {content}
+      </Box>
+    )
+    const tag = (text: string, color: string) => (
+      <Text bold inverse color={color}>
+        {` ${text} `}
+      </Text>
+    )
+    // A mark as the pane draws it, then what it means
+    const mark = (key: string, drawn: any, meaning: string) => (
+      <Box key={`help-mark:${key}`} flexDirection="row" columnGap={1}>
+        <Box width={7} flexShrink={0}>
+          {drawn}
+        </Box>
+        <Box flexShrink={1} minWidth={0}>
+          <Text dimColor>{meaning}</Text>
+        </Box>
+      </Box>
+    )
+    const body = {
+      cycle: (
+        <Box flexDirection="column" gap={air(1)}>
+          {HELP_CYCLE.map(([turn, title, text], i) =>
+            card(
+              `help-step:${i}`,
+              <>
+                {Svg ? (
+                  <Svg source={numberSvg(i + 1, turnColor(turn))} alt={`${i + 1}`} width={NUMBER_D} height={NUMBER_D} />
+                ) : (
+                  <Text bold color={turnColor(turn)}>
+                    {i + 1}.
+                  </Text>
+                )}
+                <Box flexDirection="column" flexShrink={1} minWidth={0}>
+                  <Text bold>{title}</Text>
+                  <Text dimColor>{text}</Text>
+                </Box>
+              </>,
+            ),
+          )}
+        </Box>
+      ),
+      marks: (
+        <Box flexDirection="column" gap={air(1)}>
+          <Box flexDirection="column">
+            {mark('you', tag('YOU', BLUE), 'Your move, on a change of yours')}
+            {mark('ai', tag('AI', CLAY), "The AI's move")}
+            {mark('owner', tag('ana', MUTED), "Someone else's change, in grey: whose it is")}
+          </Box>
+          <Box flexDirection="column">
+            {mark('user-task', <Text color={BLUE}>●</Text>, 'A task for you to do (a key, an account)')}
+            {mark('ai-task', <Text color={CLAY}>◦</Text>, 'A task for the AI')}
+            {mark('done', <Text color={MUTED}>✓</Text>, 'Done')}
+            {mark(
+              'bar',
+              Svg ? <Svg source={barSvg({ done: 2, total: 3 })} alt="2 of 3" width={BAR_W} height={BAR_H} /> : <Text dimColor>2/3</Text>,
+              'Tasks checked, against the spec',
+            )}
+            {Markdown && mark('link', <Text>↗</Text>, 'Opens the document the line was read from, in the Files tab')}
+          </Box>
+        </Box>
+      ),
+      commands: (
+        <Box flexDirection="column" gap={air(1)}>
+          <Box flexDirection="column">
+            {HELP_COMMANDS.map(([command, text]) => (
+              <Box key={`help-command:${command}`} flexDirection="row" columnGap={1}>
+                <Box width={23} flexShrink={0}>
+                  <Text bold>{command}</Text>
+                </Box>
+                <Box flexShrink={1} minWidth={0}>
+                  <Text dimColor>{text}</Text>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+          <Text dimColor>It reads the openspec/ folders every 10 s, never the conversation.</Text>
+        </Box>
+      ),
+    }
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Box flexDirection="row" alignItems="center" columnGap={1}>
+          <Button key="help:back" label="← Back" variant="secondary" onPress={() => update($, help, () => '')} />
+          {/* In plain text: terracotta is the AI's, blue yours */}
+          <Text bold>How spec manager works</Text>
+          {logo}
+        </Box>
+        {/* The tabs: the one open at full strength, the others dimmed */}
+        <Box flexDirection="row" columnGap={2} flexWrap="wrap">
+          {HELP_TABS.map(([name, label]) => (
+            <Button key={`help-tab:${name}`} label={label} plain dimColor={name !== helpTab} onPress={() => update($, help, () => name)} />
+          ))}
+        </Box>
+        {body[helpTab]}
+      </Box>
+    )
+  }
 
   if (error) {
     return (

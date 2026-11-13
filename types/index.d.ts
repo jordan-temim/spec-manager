@@ -9,6 +9,9 @@ export type Task = { id: string; text: string; isUserAction: boolean }
 /** A `## N. Title` section of tasks.md with its checkbox count and every task in it */
 export type Section = { num: string; title: string; tasks: (Task & { isDone: boolean })[] } & Progress
 
+/** The help page's tabs: the OpenSpec cycle, the pane's marks, the commands */
+export type HelpTab = 'cycle' | 'marks' | 'commands'
+
 /** Whose move it is: you (review, a user action, archive) or the AI */
 export type Turn = 'you' | 'ai'
 
@@ -117,6 +120,8 @@ declare module 'claude-code' {
       view: View
       /** Blocks opened or closed by a press: task sections by `change:num`, `block:specs`, `block:archived` */
       expanded: Record<string, boolean>
+      /** The help page's tab while it is open; '' when the pane shows the modules */
+      help: '' | HelpTab
     }
   }
 }

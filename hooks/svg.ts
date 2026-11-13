@@ -12,7 +12,7 @@ export const BAR_H = 6
 // and the dark theme
 export const CLAY = '#d97757' // the AI: Claude's terracotta
 export const BLUE = '#378ADD' // you
-export const GREEN = '#5fa83a' // the spec: progress bars, a card's frame under the pointer
+export const GREEN = '#5fa83a' // the spec: progress bars, a card's frame under the pointer, "spec" in the logo
 export const THREAD = '#b4b2a9' // the wordmark's thread between its steps
 export const MUTED = '#8f8d86' // done steps, labels of upcoming steps: only the current step is coloured
 export const WASH = '#88878010' // a light see-through grey behind frames and cards, on the desktop
@@ -41,7 +41,7 @@ export const dotsSvg = (current: number, total: number, currentFill: string) =>
 // The wordmark: a fixed SVG, larger and heavier than text can be (an image cannot follow
 // the theme, so its colours read on both). A change's life told in the pane's colours:
 // a step done in grey, one the AI took in terracotta, the open one waiting on you in
-// blue; then "spec" in terracotta and "manager" in the neutral grey
+// blue; then "spec" in the spec's green and "manager" in the neutral grey
 export const BRAND_W = 176
 export const BRAND_H = 28
 export const BRAND_SANS = "system-ui,-apple-system,'Segoe UI','Inter','Noto Sans','DejaVu Sans',sans-serif"
@@ -52,7 +52,14 @@ export const brandSvg = () =>
   `<circle cx="5" cy="14" r="4" fill="${MUTED}"/><circle cx="21" cy="14" r="4" fill="${CLAY}"/>` +
   `<circle cx="37" cy="14" r="5" fill="none" stroke="${BLUE}" stroke-width="2.4"/>` +
   `<text x="50" y="20" font-family="${BRAND_SANS}" font-size="18" letter-spacing="-0.3">` +
-  `<tspan font-weight="800" fill="${CLAY}">spec</tspan><tspan dx="5" font-weight="500" fill="${MUTED}">manager</tspan></text></svg>`
+  `<tspan font-weight="800" fill="${GREEN}">spec</tspan><tspan dx="5" font-weight="500" fill="${MUTED}">manager</tspan></text></svg>`
+// A step's number on the help page, white in a round of the colour of who takes it
+export const NUMBER_D = 20
+export const numberSvg = (n: number, fill: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${NUMBER_D}" height="${NUMBER_D}" viewBox="0 0 ${NUMBER_D} ${NUMBER_D}">` +
+  `<circle cx="10" cy="10" r="10" fill="${fill}"/>` +
+  `<text x="10" y="14" text-anchor="middle" font-family="${BRAND_SANS}" font-size="12" font-weight="700" fill="#ffffff">${n}</text></svg>`
+
 // The actor colours are the reader's: someone else's change stays grey
 export const actorColor = (change: Change) => (change.isMine ? turnColor(change.turn) : MUTED)
 

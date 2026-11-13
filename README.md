@@ -56,6 +56,8 @@ The same two views, drawn in text and docked to the right of the conversation (f
 
 Screenshots from a demo repository (a gym management app); the conversation, the sidebar and the project path are blurred.
 
+`? Help`, left of the logo, opens a help page in the pane: the OpenSpec cycle step by step (each number in the colour of who takes the step), what each mark means, and the commands. `← Back` returns to the pane.
+
 ## Phases and who does the next step
 
 `AI` builds, `YOU` act: the tag tells what the next step is, not what is happening right now. When the AI stops to ask you something in the conversation, the files do not change and the tag stays `AI`; the pane reads the files only.
@@ -112,14 +114,14 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 
 | Colour | Means | Where |
 | --- | --- | --- |
-| Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids, the current step while the AI holds it |
-| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids, open questions on your own plans, the current step while you hold it |
-| Meadow green `#5fa83a` | the spec: progress against it | filled bars; a card's frame under the pointer (in live-review, a drift from the spec) |
+| Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids and `◦` marks, the current step while the AI holds it |
+| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, your task ids and `●` marks, open questions on your own plans, the current step while you hold it |
+| Meadow green `#5fa83a` | the spec: progress against it | filled bars; a card's frame under the pointer; *spec* in the logo (in live-review, a drift from the spec) |
 | Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
 | Outlined pale grey | to come | upcoming steps |
 | See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |
 
-The logo tells the same story: a step done in grey, one the AI took in terracotta, the one waiting on you in blue.
+The logo tells the same story: a step done in grey, one the AI took in terracotta, the one waiting on you in blue, then *spec* in the spec's green.
 
 Only the current step is coloured, and a slow light band sweeps across it (off when the system asks for reduced motion).
 
