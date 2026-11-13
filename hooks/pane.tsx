@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import { ALL, fileUrl, isNotInstalled, mdHref, settle, steps } from './model'
+import { ALL, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
 import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
 import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, GREEN, MUTED, RULE_SVG, TAB_H, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
 import type { Change, Module, Progress, Task, Turn, View } from '../types'
@@ -201,20 +201,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // A document to open from the pane: the words as the pane draws them, then a ↗ that
   // opens it. The link alone takes Markdown's colour, the app's own dark link blue, which
   // read heavy on a whole label. Opening it is the reader's move
-  const docLink = (file: string | undefined, text: string, isBold = false) => (
-    <Box flexDirection="row" minWidth={0}>
-      <Box flexShrink={1} minWidth={0}>
-        <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
-          {text}
-        </Text>
-      </Box>
-      {Markdown && file && (
-        <Box flexShrink={0} marginLeft={1}>
-          <Markdown text={`[↗](${mdHref(fileUrl(file))})`} />
-        </Box>
-      )}
-    </Box>
-  )
+  // One Markdown for the words and their ↗, set straight in its column: a Markdown in a
+  // row of boxes beside a Text stood apart from it and widened the card past the pane
+  const docLink = (file: string | undefined, text: string, isBold = false) =>
+    Markdown && file ? (
+      <Markdown text={`${isBold ? `**${mdText(text)}**` : mdText(text)} [↗](${mdHref(fileUrl(file))})`} dimColor={isBold} />
+    ) : (
+      <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
+        {text}
+      </Text>
+    )
 
   // A label column, then its content; a label read from a document links to it
   const field = (label: string, content: any, color?: string, file?: string) => (

@@ -214,6 +214,8 @@ export const fileUrl = (path: string) => {
   return `file://${slashed.startsWith('/') ? '' : '/'}${encodeURI(slashed).replace(/[?#]/g, c => encodeURIComponent(c))}`
 }
 
+// Markdown's own marks in words, escaped: a spec named add_user_auth stays as written
+export const mdText = (text: string) => text.replace(/[\\[\]*_`<>#]/g, c => `\\${c}`)
 // A Markdown link's target, its parentheses and spaces encoded: a path with a ( stays
 // one link
 export const mdHref = (url: string) => url.replace(/[()\s]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)

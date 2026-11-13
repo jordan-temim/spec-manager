@@ -134,23 +134,23 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
     try {
-      // A ↗ that opens this file of the change: the link's whole markdown, dots kept literal
-      const hasLink = async (file: string) =>
-        (await ui.find({ type: 'Markdown', text: new RegExp(`^\\[↗\\]\\(file://${`${CHANGE}/${file}`.replace(/\./g, '\\.')}\\)$`) })) !== undefined
-      // The labels themselves stay the pane's own text
-      expect(await ui.find({ type: 'Text', text: /^Decisions$/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /^Tasks$/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /^refunds$/ })).toBeDefined()
+      // The markdown a label is drawn with: its words, then the ↗ alone a link to its file
+      const markdownOf = async (words: string) => ((await ui.find({ type: 'Markdown', text: new RegExp(`^(\\*\\*)?${words}\\b`) })) as any)?.props
       expect(await ui.find({ type: 'Link' })).toBe(undefined)
       if (surface === 'desktop') {
-        expect(await hasLink('design.md')).toBe(true)
-        expect(await hasLink('tasks.md')).toBe(true)
-        expect(await hasLink('specs/refunds/spec.md')).toBe(true)
+        expect((await markdownOf('Decisions'))?.text).toBe(`**Decisions** [↗](file://${CHANGE}/design.md)`)
+        expect((await markdownOf('Tasks'))?.text).toBe(`**Tasks** [↗](file://${CHANGE}/tasks.md)`)
+        expect((await markdownOf('refunds'))?.text).toBe(`refunds [↗](file://${CHANGE}/specs/refunds/spec.md)`)
+        // Labels dim as the others, a spec's name in plain text
+        expect((await markdownOf('Decisions'))?.dimColor).toBe(true)
+        expect((await markdownOf('refunds'))?.dimColor).toBe(false)
         // No proposal.md here: no Why line, so no link to it
-        expect(await hasLink('proposal.md')).toBe(false)
+        expect(await ui.find({ type: 'Markdown', text: /proposal\.md/ })).toBe(undefined)
       } else {
         expect(await ui.find({ type: 'Markdown' })).toBe(undefined)
         expect(await ui.find({ type: 'Text', text: /↗|file:/ })).toBe(undefined)
+        expect(await ui.find({ type: 'Text', text: /^Decisions$/ })).toBeDefined()
+        expect(await ui.find({ type: 'Text', text: /^refunds$/ })).toBeDefined()
       }
     } finally {
       await ui.unmount()
