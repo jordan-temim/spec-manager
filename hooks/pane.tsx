@@ -1,7 +1,7 @@
 // The pane: the overview of the modules, or one module with its changes, specs and archive
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
+import type { EngineInterface, RenderChildren, RenderElement, RenderInput } from 'claude-code'
 
 import { ALL, clip, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
 import { POLL_MS, SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
@@ -138,7 +138,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
 
   // The help page in place of the pane's own: a way back, the tabs, the open tab's body
   if (helpTab) {
-    const card = (key: string, content: any) => (
+    // Its pieces side by side, each a child of the row: grouped in one, they would stack
+    const card = (key: string, ...content: RenderChildren[]) => (
       <Box key={key} flexDirection="row" columnGap={1} borderStyle={Svg ? 'round' : undefined} borderColor={MUTED} backgroundColor={Svg ? WASH : undefined} paddingX={Svg ? 1 : 0}>
         {content}
       </Box>
@@ -165,22 +166,20 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
           {HELP_CYCLE.map(([turn, title, text, isOptional], i) =>
             card(
               `help-step:${i}`,
-              <>
-                {Svg ? (
-                  <Svg source={numberSvg(i + 1, turnColor(turn))} alt={`${i + 1}`} width={NUMBER_D} height={NUMBER_D} />
-                ) : (
-                  <Text bold color={turnColor(turn)}>
-                    {i + 1}.
-                  </Text>
-                )}
-                <Box flexDirection="column" flexShrink={1} minWidth={0}>
-                  <Text>
-                    <Text bold>{title}</Text>
-                    {isOptional && <Text dimColor> · optional</Text>}
-                  </Text>
-                  <Text dimColor>{text}</Text>
-                </Box>
-              </>,
+              Svg ? (
+                <Svg source={numberSvg(i + 1, turnColor(turn))} alt={`${i + 1}`} width={NUMBER_D} height={NUMBER_D} />
+              ) : (
+                <Text bold color={turnColor(turn)}>
+                  {i + 1}.
+                </Text>
+              ),
+              <Box flexDirection="column" flexShrink={1} minWidth={0}>
+                <Text>
+                  <Text bold>{title}</Text>
+                  {isOptional && <Text dimColor> · optional</Text>}
+                </Text>
+                <Text dimColor>{text}</Text>
+              </Box>,
             ),
           )}
         </Box>

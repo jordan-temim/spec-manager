@@ -335,9 +335,12 @@ export async function loadRoot($: EngineInterface, path: string, full = true): P
     const files = artifactsOf.has(one.name) && specPathsOf.has(one.name) ? undefined : await filesOf($, changeRoot)
     const artifacts = artifactsOf.get(one.name) ?? files?.artifacts ?? []
     const specPaths = specPathsOf.get(one.name) ?? files?.specPaths ?? []
+    // A light read's digest, empty: typed rather than asserted, so a field Digest comes to
+    // require is missed here at validation, not when the pane draws it
+    const light: Digest = { specs: [], decisions: [], openQuestions: [] }
     const [markdown, digest, owned] = await Promise.all([
       $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
-      full ? loadDigest($, changeRoot, specPaths) : ({ specs: [], decisions: [], openQuestions: [] } as Digest),
+      full ? loadDigest($, changeRoot, specPaths) : light,
       ownership($, path, changeRoot),
     ])
     const { sections, open } = parseTasks(markdown)

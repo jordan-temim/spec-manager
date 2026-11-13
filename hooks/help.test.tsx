@@ -108,3 +108,19 @@ test('/spec-manager closes the help page: the module or overview it asks for sho
     await ui.unmount()
   }
 })
+
+test("a step's number stands beside its words, not above them", async ($, on) => {
+  fakeRepo(on)
+  await run($)
+  const ui = await mountPane($, 'terminal')
+  try {
+    await ui.press({ key: 'help:open' })
+    // The card's row holds the number and the words as two children of its own: grouped in
+    // one column, the number would sit above the title
+    const step = await ui.find({ key: 'help-step:0' })
+    expect(step?.props.flexDirection).toBe('row')
+    expect(step?.children.map((child: { type?: string }) => child.type)).toEqual(['Text', 'Box'])
+  } finally {
+    await ui.unmount()
+  }
+})
