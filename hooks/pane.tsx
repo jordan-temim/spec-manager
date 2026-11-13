@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import { ALL, fileUrl, isNotInstalled, mdHref, mdText, settle, steps } from './model'
+import { ALL, fileUrl, isNotInstalled, mdHref, settle, steps } from './model'
 import { SCAN_MAX_DIRS, refresh, select, sessionOf } from './load'
 import { BAR_H, BAR_W, BLUE, BRAND_H, BRAND_W, CLAY, DOT, GREEN, MUTED, RULE_SVG, TAB_H, WASH, actorColor, barSvg, brandSvg, dotsSvg, dotsWidth, stepperSvg, stepperWidth, turnColor } from './svg'
 import type { Change, Module, Progress, Task, Turn, View } from '../types'
@@ -52,10 +52,9 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   // The terminal draws text: there the counts stand in for the bars, symbols for the
   // stepper. Asked by surface, since newer terminals carry an Svg that draws nothing
   const Svg = e.surface !== 'terminal' && 'Svg' in elements ? elements.Svg : undefined
-  // A document's link: on the terminal a Link (an OSC 8 span); the desktop draws a Link to a
-  // file as plain text, but its Markdown, the renderer of Claude's own replies, keeps
-  // file: links and opens them as a reply's are
-  const Link = e.surface === 'terminal' && 'Link' in elements ? elements.Link : undefined
+  // A document's link, on the desktop alone: its Link draws a file link as plain text, but
+  // its Markdown, the renderer of Claude's own replies, opens one in the Files tab. The
+  // terminal has none to offer: a Link there opened nothing and wrote out the whole URL
   const Markdown = e.surface !== 'terminal' && 'Markdown' in elements ? elements.Markdown : undefined
   // A terminal row is far taller than a pixel: there the frames and cards drop the
   // blank rows that only give the desktop some air
@@ -199,21 +198,23 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
     </Box>
   )
 
-  // A document to open from the pane: its text a link, then a quiet ↗ that says so.
-  // Opening it is the reader's move; where it opens is the surface's
-  const docLink = (file: string | undefined, text: string, isBold = false) =>
-    Markdown && file ? (
-      <Markdown text={`${isBold ? '**' : ''}[${mdText(text)}](${mdHref(fileUrl(file))})${isBold ? '**' : ''} ↗`} dimColor={isBold} />
-    ) : Link && file ? (
-      <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
-        <Link href={fileUrl(file)}>{text}</Link>
-        <Text dimColor bold={false}> ↗</Text>
-      </Text>
-    ) : (
-      <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
-        {text}
-      </Text>
-    )
+  // A document to open from the pane: the words as the pane draws them, then a ↗ that
+  // opens it. The link alone takes Markdown's colour, the app's own dark link blue, which
+  // read heavy on a whole label. Opening it is the reader's move
+  const docLink = (file: string | undefined, text: string, isBold = false) => (
+    <Box flexDirection="row" minWidth={0}>
+      <Box flexShrink={1} minWidth={0}>
+        <Text bold={isBold} dimColor={isBold} wrap="truncate-end">
+          {text}
+        </Text>
+      </Box>
+      {Markdown && file && (
+        <Box flexShrink={0} marginLeft={1}>
+          <Markdown text={`[↗](${mdHref(fileUrl(file))})`} />
+        </Box>
+      )}
+    </Box>
+  )
 
   // A label column, then its content; a label read from a document links to it
   const field = (label: string, content: any, color?: string, file?: string) => (

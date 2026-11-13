@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, artifactsFrom, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, mdText, moduleName, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
+import { absolute, artifactsFrom, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, moduleName, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -507,8 +507,7 @@ describe('file links', () => {
 })
 
 describe('markdown links', () => {
-  test("a name's brackets and stars escaped, a target's parentheses and spaces encoded", () => {
-    expect(mdText('a]b*c')).toBe('a\\]b\\*c')
+  test("a target's parentheses and spaces encoded", () => {
     expect(mdHref('file:///repo/a(1) b.md')).toBe('file:///repo/a%281%29%20b.md')
   })
 })

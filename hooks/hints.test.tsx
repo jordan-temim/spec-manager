@@ -125,31 +125,32 @@ for (const [whose, author, color] of [
   })
 }
 
-// Each line of the plan links to the document it was read from (a document with nothing
-// in it gives none): a Link on the terminal, a Markdown link on the desktop
+// Each line of the plan opens the document it was read from by a ↗ beside it (a document
+// with nothing in it gives none), on the desktop; the terminal, which opened nothing and
+// wrote the whole URL out, shows the labels alone
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`on the ${surface}, the plan's labels open their documents`, async ($, on) => {
+  test(`on the ${surface}, the plan's labels ${surface === 'desktop' ? 'open their documents' : 'stay plain'}`, async ($, on) => {
     fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n')
     await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'user' }, presentation: {} })
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock' } })
     try {
-      // A link's text, as the kit reads it, is its URL then its words
-      const hrefOf = async (words: string) => ((await ui.find({ type: 'Link', text: new RegExp(`${words}$`) })) as any)?.props?.href
-      if (surface === 'terminal') {
-        expect(await hrefOf('Decisions')).toBe(`file://${CHANGE}/design.md`)
-        expect(await hrefOf('Tasks')).toBe(`file://${CHANGE}/tasks.md`)
-        expect(await hrefOf('refunds')).toBe(`file://${CHANGE}/specs/refunds/spec.md`)
+      // A ↗ that opens this file of the change: the link's whole markdown, dots kept literal
+      const hasLink = async (file: string) =>
+        (await ui.find({ type: 'Markdown', text: new RegExp(`^\\[↗\\]\\(file://${`${CHANGE}/${file}`.replace(/\./g, '\\.')}\\)$`) })) !== undefined
+      // The labels themselves stay the pane's own text
+      expect(await ui.find({ type: 'Text', text: /^Decisions$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^Tasks$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^refunds$/ })).toBeDefined()
+      expect(await ui.find({ type: 'Link' })).toBe(undefined)
+      if (surface === 'desktop') {
+        expect(await hasLink('design.md')).toBe(true)
+        expect(await hasLink('tasks.md')).toBe(true)
+        expect(await hasLink('specs/refunds/spec.md')).toBe(true)
         // No proposal.md here: no Why line, so no link to it
-        expect(await hrefOf('Why')).toBe(undefined)
-        expect(await ui.find({ type: 'Text', text: /Decisions ↗$/ })).toBeDefined()
+        expect(await hasLink('proposal.md')).toBe(false)
       } else {
-        // The desktop's Link would draw a file link as plain text: Markdown carries it
-        expect(await ui.find({ type: 'Link' })).toBe(undefined)
-        const markdownOf = async (words: string) => ((await ui.find({ type: 'Markdown', text: new RegExp(`\\[${words}\\]`) })) as any)?.props?.text
-        expect(await markdownOf('Decisions')).toBe(`**[Decisions](file://${CHANGE}/design.md)** ↗`)
-        expect(await markdownOf('Tasks')).toBe(`**[Tasks](file://${CHANGE}/tasks.md)** ↗`)
-        expect(await markdownOf('refunds')).toBe(`[refunds](file://${CHANGE}/specs/refunds/spec.md) ↗`)
-        expect(await markdownOf('Why')).toBe(undefined)
+        expect(await ui.find({ type: 'Markdown' })).toBe(undefined)
+        expect(await ui.find({ type: 'Text', text: /↗|file:/ })).toBe(undefined)
       }
     } finally {
       await ui.unmount()

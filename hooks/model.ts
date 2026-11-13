@@ -214,9 +214,8 @@ export const fileUrl = (path: string) => {
   return `file://${slashed.startsWith('/') ? '' : '/'}${encodeURI(slashed).replace(/[?#]/g, c => encodeURIComponent(c))}`
 }
 
-// Markdown's own marks in a link's words and its target, escaped: a name with a ] or a
-// path with a ( stays one link
-export const mdText = (text: string) => text.replace(/[\\[\]*_`]/g, c => `\\${c}`)
+// A Markdown link's target, its parentheses and spaces encoded: a path with a ( stays
+// one link
 export const mdHref = (url: string) => url.replace(/[()\s]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
 
 // Whose change it is: the author of the oldest commit on its folder (`git log

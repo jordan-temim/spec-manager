@@ -63,7 +63,7 @@ Screenshots from a demo repository (a gym management app); the conversation, the
 | Phase | When | Next step by | Below the stepper |
 | --- | --- | --- | --- |
 | Planning | a planning document is missing | `AI` | the document to write next |
-| Plan to review | every planning document written, no task checked (also while `/opsx:apply` works on its first task: the pane moves on once a task is checked) | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count; each label (Why ↗, a spec's name, Decisions ↗, Tasks ↗) opens the document it was read from |
+| Plan to review | every planning document written, no task checked (also while `/opsx:apply` works on its first task: the pane moves on once a task is checked) | `YOU` | the plan in a few lines: why, specs (requirements, scenarios), decisions, the open questions written out, task count; on the desktop, a ↗ beside each label (Why, a spec's name, Decisions, Tasks) opens the document it was read from in the Files tab |
 | Implementing | at least one task checked | `YOU` if the next task is a user action, else `AI` | progress per section, the tasks of the current one, your next user-action task, the AI's next task |
 | Ready to archive | every task checked | `YOU` | the specs archiving will merge |
 
