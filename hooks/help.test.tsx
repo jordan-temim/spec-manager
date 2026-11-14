@@ -64,23 +64,33 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
-test('each step of the cycle is numbered in the colour of who takes it', async ($, on) => {
-  fakeRepo(on)
-  await run($)
-  const ui = await mountPane($, 'terminal')
-  try {
-    await ui.press({ key: 'help:open' })
-    const colorOf = async (n: number) => ((await ui.find({ type: 'Text', text: new RegExp(`^${n}\\.$`) })) as any)?.props?.color
-    const AI = '#d97757'
-    const YOU = '#378ADD'
-    // explore, review and archive are yours; propose, update, apply and sync the AI's
-    const colors = await Promise.all([1, 2, 3, 4, 5, 6, 7].map(colorOf))
-    expect(colors).toEqual([YOU, AI, YOU, AI, AI, AI, YOU])
-    expect(await colorOf(8)).toBe(undefined)
-  } finally {
-    await ui.unmount()
-  }
-})
+// The number's colour: the terminal's Text colour, the fill of the desktop's picture
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on the ${surface}, each step of the cycle is numbered in the colour of who takes it`, async ($, on) => {
+    fakeRepo(on)
+    await run($)
+    const ui = await mountPane($, surface)
+    try {
+      await ui.press({ key: 'help:open' })
+      // A step's number: its Text on the terminal; on the desktop the first child of its
+      // card's row, the picture whose circle is filled in the colour
+      const colorOf = async (n: number) => {
+        if (surface === 'terminal') return ((await ui.find({ type: 'Text', text: new RegExp(`^${n}\\.$`) })) as any)?.props?.color
+        const number = ((await ui.find({ key: `help-step:${n - 1}` })) as any)?.children?.[0]
+        if (!number) return undefined
+        return number.type === 'Svg' && number.props.alt === `${n}` ? /<circle [^>]*fill="([^"]+)"/.exec(number.props.source)?.[1] : 'not the number'
+      }
+      const AI = '#d97757'
+      const YOU = '#378ADD'
+      // explore, review and archive are yours; propose, update, apply and sync the AI's
+      const colors = await Promise.all([1, 2, 3, 4, 5, 6, 7].map(colorOf))
+      expect(colors).toEqual([YOU, AI, YOU, AI, AI, AI, YOU])
+      expect(await colorOf(8)).toBe(undefined)
+    } finally {
+      await ui.unmount()
+    }
+  })
+}
 
 test('/spec-manager closes the help page: the module or overview it asks for shows', async ($, on) => {
   fakeRepo(on, ['/repo/packages/paiement', '/repo/packages/catalogue'])
@@ -109,18 +119,21 @@ test('/spec-manager closes the help page: the module or overview it asks for sho
   }
 })
 
-test("a step's number stands beside its words, not above them", async ($, on) => {
-  fakeRepo(on)
-  await run($)
-  const ui = await mountPane($, 'terminal')
-  try {
-    await ui.press({ key: 'help:open' })
-    // The card's row holds the number and the words as two children of its own: grouped in
-    // one column, the number would sit above the title
-    const step = await ui.find({ key: 'help-step:0' })
-    expect(step?.props.flexDirection).toBe('row')
-    expect(step?.children.map((child: { type?: string }) => child.type)).toEqual(['Text', 'Box'])
-  } finally {
-    await ui.unmount()
-  }
-})
+// The number a picture on the desktop, words on the terminal: the row the same on both
+for (const surface of ['terminal', 'desktop'] as const) {
+  test(`on the ${surface}, a step's number stands beside its words, not above them`, async ($, on) => {
+    fakeRepo(on)
+    await run($)
+    const ui = await mountPane($, surface)
+    try {
+      await ui.press({ key: 'help:open' })
+      // The card's row holds the number and the words as two children of its own: grouped in
+      // one column, the number would sit above the title
+      const step = await ui.find({ key: 'help-step:0' })
+      expect(step?.props.flexDirection).toBe('row')
+      expect(step?.children.map((child: { type?: string }) => child.type)).toEqual([surface === 'desktop' ? 'Svg' : 'Text', 'Box'])
+    } finally {
+      await ui.unmount()
+    }
+  })
+}
