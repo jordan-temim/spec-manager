@@ -34,7 +34,9 @@ const OPENSPEC: Record<string, Record<string, unknown>> = {
   },
 }
 
+// Every command but openspec refused and kept: the pane runs openspec alone, git included
 const fakeRepo = (on: any) => {
+  const unexpected: string[][] = []
   mock.clock(on)
   mock.store(on)
   // A hook beneath the plugins answers a call on $ with { value } (or refuses it with { deny })
@@ -45,12 +47,17 @@ const fakeRepo = (on: any) => {
   }))
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
+    if (e.argv[0] !== 'openspec') {
+      unexpected.push([...e.argv])
+      return { deny: `not openspec: ${e.argv[0]}` }
+    }
     const [, verb, flag] = e.argv
     const answers = OPENSPEC[e.init?.cwd ?? ''] ?? {}
     const body = flag === '--specs' ? { specs: [] } : flag === '--archived' ? { changes: [] } : answers[verb ?? '']
     return { value: { exitCode: 0, stdout: JSON.stringify(body ?? { changes: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
+  return { unexpected }
 }
 
 const runCommand = ($: any, args: string) =>
@@ -60,7 +67,7 @@ const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
 const props = { title: 'OpenSpec', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
 test('at the repo top, the overview lists both modules and a press opens one', async ($, on) => {
-  fakeRepo(on)
+  const { unexpected } = fakeRepo(on)
   for (const surface of ['terminal', 'desktop'] as const) {
     await runCommand($, 'all')
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
@@ -82,15 +89,22 @@ test('at the repo top, the overview lists both modules and a press opens one', a
     await ui.press({ key: 'modules:all' })
     await ui.unmount()
   }
+  expect(unexpected).toEqual([])
 })
 
-test('/spec-manager <module> opens that module', async ($, on) => {
-  fakeRepo(on)
+test('/spec-manager <module> opens that module, its change the reader\'s like any other', async ($, on) => {
+  const { unexpected } = fakeRepo(on)
   const answer = await runCommand($, 'catalogue')
   expect(answer.text).toBe('Showing packages/catalogue.')
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', ...PANE, props })
   expect(await ui.find({ type: 'Text', text: /variants/ })).toBeDefined()
+  // A plan to review: it waits on the reader, with what to type, whoever wrote it
+  expect(await ui.find({ type: 'Text', text: /^● Waiting on you$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Review the plan, then \/opsx:apply/ })).toBeDefined()
+  // No author anywhere: nothing waits on anyone else
+  expect(await ui.find({ type: 'Text', text: /Waiting on (?!you)/ })).toBe(undefined)
   await ui.unmount()
+  expect(unexpected).toEqual([])
 })
 
 test('the terminal draws the stepper as text', async ($, on) => {

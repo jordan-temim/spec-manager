@@ -36,6 +36,8 @@ const fakeRepo = (on: any, names: string[]) => {
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', async (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
+    // The pane runs openspec alone: anything else is refused, and fails the test below
+    if (e.argv[0] !== 'openspec') throw new Error(`not openspec: ${e.argv.join(' ')}`)
     const cwd = e.init?.cwd ?? ''
     runs.push({ cwd, argv: [...e.argv] })
     inFlight++
@@ -53,7 +55,7 @@ const fakeRepo = (on: any, names: string[]) => {
       if (left === 0) reading.delete(cwd)
       else reading.set(cwd, left)
     }
-    const [cmd, verb, flag] = e.argv
+    const [, verb, flag] = e.argv
     const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'bad schema' : '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (broken.has(cwd)) return out('', 1)
     if (flag === '--specs' || flag === '--archived' || verb === 'status') return out(JSON.stringify({ changes: [], specs: [] }))
@@ -119,6 +121,23 @@ test('a failing module is read again at each poll, alone', async ($, on) => {
     expect(repo.openspecIn('catalogue')).toBeGreaterThan(catalogue)
   }
   expect(repo.openspecIn('paiement')).toBe(paiement)
+})
+
+test('/spec-manager run again reads every module afresh, nothing having moved', async ($, on) => {
+  const repo = fakeRepo(on, ['paiement', 'catalogue'])
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await run($, '')
+  await repo.clock.settle()
+  const before = { paiement: repo.openspecIn('paiement'), catalogue: repo.openspecIn('catalogue') }
+  // A poll with nothing moved reads nothing; the command, forced, reads both again
+  await poll(repo.clock)
+  expect(repo.openspecIn('paiement')).toBe(before.paiement)
+  await run($, '')
+  await repo.clock.settle()
+  expect(repo.openspecIn('paiement')).toBeGreaterThan(before.paiement)
+  expect(repo.openspecIn('catalogue')).toBeGreaterThan(before.catalogue)
+  // Every run was openspec's
+  expect(repo.runs.every(r => r.argv[0] === 'openspec')).toBe(true)
 })
 
 test('a large repository reads a few modules at a time', async ($, on) => {

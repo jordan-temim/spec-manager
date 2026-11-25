@@ -118,7 +118,9 @@ test('a whole session reads OpenSpec files and runs openspec only, and nothing o
     expect(['list', 'status'].includes(verb ?? '')).toBe(true)
     expect(argv.includes('--json')).toBe(true)
     // Stopped if it hangs, after at most 15 seconds
-    expect((seen.inits[i]?.timeoutMs ?? Infinity) <= 15000).toBe(true)
+    // A positive number: 0 or less would set no limit in many process APIs
+    const timeout = seen.inits[i]?.timeoutMs
+    expect(typeof timeout === 'number' && timeout > 0 && timeout <= 15000).toBe(true)
     // Its telemetry off: nothing sent out through it
     expect(seen.inits[i]?.env?.OPENSPEC_TELEMETRY).toBe('0')
     expect(seen.inits[i]?.env?.DO_NOT_TRACK).toBe('1')

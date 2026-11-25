@@ -61,7 +61,7 @@ const fakeRepo = (on: any, tree: Tree, options: Options = {}) => {
   })
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
     runs.push({ argv: [...e.argv], cwd: e.init?.cwd ?? '' })
-    const [cmd, verb, flag] = e.argv
+    const [, verb, flag] = e.argv
     const out = (body: unknown) => ({ value: { exitCode: 0, stdout: typeof body === 'string' ? body : JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
     if (flag === '--specs' || flag === '--archived') return out({ specs: [], changes: [] })
     if (verb === 'status') {
@@ -96,6 +96,26 @@ test('the documents found plain in the change folder are read, nothing else', as
   const { reads, clock } = fakeRepo(on, plainTree())
   await open($, clock)
   expect([...new Set(reads)].sort()).toEqual(Object.keys(DOCS).sort())
+})
+
+test('a document readable but not found in the change folder is not read', async ($, on) => {
+  const tree = plainTree()
+  // design.md and the spec answer a read (DOCS holds them), but the folder lists neither:
+  // only what the listing shows is read, whatever openspec status says is there
+  tree[CHANGE] = [['proposal.md', 'file'], ['tasks.md', 'file'], ['specs', 'dir']]
+  tree[`${CHANGE}/specs/refunds`] = []
+  const { reads, clock } = fakeRepo(on, tree, {
+    artifactPaths: {
+      design: { existingOutputPaths: [`${CHANGE}/design.md`] },
+      specs: { existingOutputPaths: [`${CHANGE}/specs/refunds/spec.md`] },
+    },
+  })
+  await open($, clock)
+  expect(reads).not.toContain(`${CHANGE}/design.md`)
+  expect(reads).not.toContain(`${CHANGE}/specs/refunds/spec.md`)
+  expect(reads).toContain(`${CHANGE}/tasks.md`)
+  // Nothing of design.md drawn either: no Decisions line
+  expect(await pane($)).not.toContain('D1')
 })
 
 test('a document that is a symbolic link is never read, whatever it points to', async ($, on) => {
@@ -206,7 +226,12 @@ test('a change name that is a path is left out: nothing read or listed in it', a
   const outside = (path: string) => !path.startsWith(`${CHANGES}/add-refunds`) && path.startsWith(`${CHANGES}/`)
   expect(reads.filter(outside)).toEqual([])
   expect(lists.filter(outside)).toEqual([])
-  // Nothing but openspec runs, and only in the module
-  for (const run of runs) expect([run.argv[0], run.cwd]).toEqual(['openspec', MODULE])
+  // Nothing but openspec runs, only in the module, and no command names a change: none
+  // of those names reaches an argument
+  for (const run of runs) {
+    expect([run.argv[0], run.cwd]).toEqual(['openspec', MODULE])
+    for (const name of names.filter(n => n !== '')) expect(run.argv.some(arg => arg.includes(name))).toBe(false)
+    expect(run.argv.some(arg => arg.includes('add-refunds'))).toBe(false)
+  }
   expect(await pane($)).toContain('add-refunds')
 })
