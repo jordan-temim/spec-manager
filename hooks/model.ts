@@ -191,12 +191,20 @@ export const specName = (file: string) => {
   return path.slice(at + '/specs/'.length).replace(/\/spec\.md$/, '')
 }
 
-// openspec's paths, made absolute against the module folder it ran in. A Windows path
-// (C:\\… or C:/…) is absolute too, read with forward slashes
-export const absolute = (dir: string, file: string) => {
-  const path = file.replace(/\\/g, '/')
-  return path.startsWith('/') || /^[A-Za-z]:\//.test(path) ? path : `${dir}/${path.replace(/^\.\//, '')}`
-}
+// A change's name as openspec lists it, taken only as one folder of openspec/changes/:
+// never empty, `.` or `..`, and without a separator that would make it a path
+export const isPlainName = (name: unknown): name is string =>
+  typeof name === 'string' && name !== '' && name !== '.' && name !== '..' && !/[/\\\0]/.test(name)
+
+// A document the pane may read: a .md file inside the change's own folder, its path
+// without an empty, `.` or `..` part that could lead out of it
+export const isDocOf = (file: string, changeRoot: string) =>
+  file.startsWith(`${changeRoot}/`) &&
+  file.endsWith('.md') &&
+  !file
+    .slice(changeRoot.length + 1)
+    .split('/')
+    .some(part => part === '' || part === '.' || part === '..')
 
 // A file's link: a file:// URL of its absolute path, a Windows one (C:/…) given its
 // third slash; what a URL reads as its own (#, ?, %) is escaped
@@ -212,23 +220,14 @@ export const clip = (text: string, max: number) => {
   return chars.length <= max ? text : `${chars.slice(0, Math.max(0, max - 1)).join('')}…`
 }
 
-// Markdown's own marks in words, escaped: a spec named add_user_auth stays as written
-export const mdText = (text: string) => text.replace(/[\\[\]*_`<>#]/g, c => `\\${c}`)
+// Markdown's own marks in words, escaped: a spec named add_user_auth stays as written.
+// So are the marks of a link the renderer would make by itself: a spec folder named
+// www.example.com, an email or a URL (`.`, `:`, `@`) stays words, never a link out of
+// the pane; `~` would strike through
+export const mdText = (text: string) => text.replace(/[\\[\]*_`<>#.:@~]/g, c => `\\${c}`)
 // A Markdown link's target, its parentheses and spaces encoded: a path with a ( stays
 // one link
 export const mdHref = (url: string) => url.replace(/[()\s]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)
-
-// Whose change it is: the author of the oldest commit on its folder (`git log
-// --reverse --format=%ae%x09%an`). No commit yet means it was made here: the reader's
-export function ownerOf(log: string, me: string): { isMine: boolean; owner?: string } {
-  const first = log.split('\n').find(line => line.trim() !== '')
-  // Emails compared as git writes them for people: spaces and case aside
-  const mine = me.trim().toLowerCase()
-  if (!first || mine === '') return { isMine: true }
-  const [email = '', name = ''] = first.split('\t')
-  if (email.trim().toLowerCase() === mine) return { isMine: true }
-  return { isMine: false, owner: name.trim() || email.trim() }
-}
 
 export type StepState = 'done' | 'current' | 'todo'
 

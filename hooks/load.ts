@@ -1,10 +1,10 @@
-// Reading the repository: the modules found, openspec and git run in each, the view the
+// Reading the repository: the modules found, openspec run in each, the view the
 // pane draws and the state each session keeps between its hooks
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import { ALL, absolute, artifactsFrom, artifactsFromFiles, moduleName, ownerOf, parseDesign, parseTasks, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
+import { ALL, artifactsFrom, artifactsFromFiles, isDocOf, isPlainName, moduleName, parseDesign, parseTasks, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
 import type { Artifact, Change, Digest, Module, Root, View } from '../types'
 
 export const PANE = 'spec-manager'
@@ -14,9 +14,10 @@ export const ARCHIVED_SHOWN = 3
 
 export const SCAN_DEPTH = 5
 export const SCAN_MAX_DIRS = 2000
-export const DISCOVER_EVERY_MS = 60000
-// The pane reads the files every 10 seconds; the minute's search runs at the first poll past it
-export const POLL_MS = 10000
+export const DISCOVER_EVERY_MS = 300000
+// The pane reads the files every 30 seconds; the search for modules, every 5 minutes, runs
+// at the first poll past it
+export const POLL_MS = 30000
 export const SKIPPED_DIRS = new Set(['node_modules', 'dist', 'build', 'target', 'vendor', 'openspec'])
 
 export const view = atom({ plugin: 'spec-manager', key: 'view' } as const, { roots: [], modules: [] } as View)
@@ -42,8 +43,8 @@ export type Session = {
   found?: { base: string; inside?: string; paths: string[]; isCut: boolean; at: number }
   /** `/spec-manager` asked to start over: the refresh under way picks again what to show */
   isReset?: boolean
-  /** The pane opens by itself once there is an OpenSpec module to show, and only once:
-   *  a project without openspec/ gets no pane until /spec-manager or `openspec init` */
+  /** /spec-manager was run in this session: the pane never opens, and nothing in the
+   *  repository is read or run, before it */
   hasOpened: boolean
   /** When the next look at the files is due, for the countdown in the footer */
   nextPollAt: number
@@ -120,9 +121,11 @@ export async function discover($: EngineInterface): Promise<{ base: string; insi
     const next: Folder[] = []
     level.forEach((folder, i) => {
       const entries = listings[i] ?? []
-      if (entries.some(e => e.kind === 'dir' && e.name === 'openspec')) modules.push(folder)
+      // A symbolic link is not followed, nor an openspec/ that is one: the walk stays in
+      // the repository's own folders
+      if (entries.some(e => e.kind === 'dir' && e.name === 'openspec' && !e.isLink)) modules.push(folder)
       entries
-        .filter(entry => entry.kind === 'dir' && !entry.name.startsWith('.') && !SKIPPED_DIRS.has(entry.name))
+        .filter(entry => entry.kind === 'dir' && !entry.isLink && !entry.name.startsWith('.') && !SKIPPED_DIRS.has(entry.name))
         .forEach((entry, j) => next.push({ dir: `${folder.dir}/${entry.name}`, place: [...folder.place, j] }))
     })
     level = depth > 0 ? next : []
@@ -187,7 +190,8 @@ export async function signature($: EngineInterface, root: string): Promise<strin
     for (const entry of entries) {
       parts.push(`${dir}/${entry.name}:${entry.mtimeMs}`)
       const isArchive = entry.name === 'archive' && dir.endsWith('/openspec/changes')
-      if (entry.kind === 'dir' && depth > 0 && !isArchive) await walk(`${dir}/${entry.name}`, depth - 1)
+      // A symbolic link counts by its own time, never walked into
+      if (entry.kind === 'dir' && !entry.isLink && depth > 0 && !isArchive) await walk(`${dir}/${entry.name}`, depth - 1)
     }
   }
   await walk(`${root}/openspec`, 4)
@@ -206,32 +210,61 @@ export const parsed = async (run: Promise<Run>, command: string): Promise<any> =
     throw new Error(`${command} gave no JSON: ${stdout.trim().slice(0, 80) || '(nothing)'}`)
   }
 }
+// openspec run with its telemetry (and its update check, which reads the same signals)
+// off: the pane runs it by itself, every poll a file moved, and sends nothing out through
+// it. Added to the environment the engine gives, which keeps the PATH
+export const OPENSPEC_ENV = { OPENSPEC_TELEMETRY: '0', DO_NOT_TRACK: '1' } as const
+// A command that hangs is stopped: an openspec stuck on a module would hold the refresh,
+// and /spec-manager waiting on it, for as long as it ran. The module then shows the error
+export const OPENSPEC_TIMEOUT_MS = 15000
 export function openspecList($: EngineInterface, cwd: string) {
-  return parsed($.process.run(['openspec', 'list', '--json'], { cwd }), 'openspec list')
+  return parsed($.process.run(['openspec', 'list', '--json'], { cwd, env: OPENSPEC_ENV, timeoutMs: OPENSPEC_TIMEOUT_MS }), 'openspec list')
 }
 export function openspecStatus($: EngineInterface, cwd: string) {
-  return parsed($.process.run(['openspec', 'status', '--all', '--json'], { cwd }), 'openspec status')
+  return parsed($.process.run(['openspec', 'status', '--all', '--json'], { cwd, env: OPENSPEC_ENV, timeoutMs: OPENSPEC_TIMEOUT_MS }), 'openspec status')
 }
 export function openspecSpecs($: EngineInterface, cwd: string) {
-  return parsed($.process.run(['openspec', 'list', '--specs', '--sort', 'name', '--json'], { cwd }), 'openspec list --specs')
+  return parsed($.process.run(['openspec', 'list', '--specs', '--sort', 'name', '--json'], { cwd, env: OPENSPEC_ENV, timeoutMs: OPENSPEC_TIMEOUT_MS }), 'openspec list --specs')
 }
 export function openspecArchived($: EngineInterface, cwd: string) {
-  return parsed($.process.run(['openspec', 'list', '--archived', '--json'], { cwd }), 'openspec list --archived')
+  return parsed($.process.run(['openspec', 'list', '--archived', '--json'], { cwd, env: OPENSPEC_ENV, timeoutMs: OPENSPEC_TIMEOUT_MS }), 'openspec list --archived')
 }
 
+// The documents of a change the pane reads, by name in its folder
+export const DOCS = ['proposal.md', 'design.md', 'tasks.md']
+
+// A change's documents, found in its own folder: plain .md files, never a symbolic link
+// (to a file or a folder), so a read never leaves the repository. They are the only files
+// read: openspec's own paths (status's existingOutputPaths) say whether a document is
+// written, never where to read
 export async function filesOf($: EngineInterface, changeRoot: string) {
-  const names = (await $.fs.list(changeRoot).catch(() => [])).map(entry => entry.name)
-  const specDirs = names.includes('specs')
-    ? (await $.fs.list(`${changeRoot}/specs`).catch(() => [])).filter(entry => entry.kind === 'dir').map(entry => entry.name)
+  const isPlainFile = (entry: { kind: string; isLink?: boolean }) => entry.kind === 'file' && !entry.isLink
+  const isPlainDir = (entry: { kind: string; isLink?: boolean }) => entry.kind === 'dir' && !entry.isLink
+  const entries = await $.fs.list(changeRoot).catch(() => [])
+  const names = entries.filter(isPlainFile).map(entry => entry.name)
+  const specDirs = entries.some(entry => entry.name === 'specs' && isPlainDir(entry))
+    ? (await $.fs.list(`${changeRoot}/specs`).catch(() => [])).filter(isPlainDir).map(entry => entry.name)
     : []
+  // Each capability's spec.md, only where it is a plain file of its own folder
+  const specPaths = (
+    await Promise.all(
+      specDirs.map(async dir => {
+        const inner = await $.fs.list(`${changeRoot}/specs/${dir}`).catch(() => [])
+        return inner.some(entry => entry.name === 'spec.md' && isPlainFile(entry)) ? `${changeRoot}/specs/${dir}/spec.md` : undefined
+      }),
+    )
+  ).filter((file): file is string => file !== undefined)
+  const docs = DOCS.filter(name => names.includes(name)).map(name => `${changeRoot}/${name}`)
   return {
     artifacts: artifactsFromFiles(names, specDirs),
-    specPaths: specDirs.map(dir => `${changeRoot}/specs/${dir}/spec.md`),
+    specPaths,
+    readable: new Set([...docs, ...specPaths].filter(file => isDocOf(file, changeRoot))),
   }
 }
 
-export async function loadDigest($: EngineInterface, changeRoot: string, specPaths: string[]) {
-  const readFile = (file: string) => $.fs.read(file).catch(() => '')
+export async function loadDigest($: EngineInterface, changeRoot: string, specPaths: string[], readable: Set<string>) {
+  // Only a document filesOf found, whatever path is asked
+  const readFile = (file: string) => (readable.has(file) ? $.fs.read(file).catch(() => '') : Promise.resolve(''))
   const [proposal, design, ...specs] = await Promise.all([
     readFile(`${changeRoot}/proposal.md`),
     readFile(`${changeRoot}/design.md`),
@@ -253,43 +286,8 @@ export async function loadDigest($: EngineInterface, changeRoot: string, specPat
   }
 }
 
-// The reader's git email, per repository; empty outside git or when unset. Only an
-// email is kept: an empty answer is asked again, so one set later is picked up
-export const emails = new Map<string, Promise<string>>()
-export function myEmail($: EngineInterface, cwd: string) {
-  if (!emails.has(cwd)) {
-    const email = $.process
-      .run(['git', 'config', 'user.email'], { cwd })
-      .then(r => (r.exitCode === 0 ? r.stdout.trim() : ''))
-      .catch(() => '')
-    emails.set(cwd, email)
-    void email.then(found => {
-      if (found === '') emails.delete(cwd)
-    })
-  }
-  return emails.get(cwd)!
-}
-
-// A change folder's first commit, once it has one: who made it never changes, so git is
-// asked once per change. A folder not committed yet is asked again at its next read
-export const firstCommits = new Map<string, string>()
-export async function ownership($: EngineInterface, cwd: string, dir: string) {
-  const me = await myEmail($, cwd)
-  if (me === '') return { isMine: true }
-  let first = firstCommits.get(dir)
-  if (first === undefined) {
-    const log = await $.process
-      .run(['git', 'log', '--reverse', '--format=%ae%x09%an', '--', dir], { cwd })
-      .catch(() => undefined)
-    if (!log || log.exitCode !== 0) return { isMine: true }
-    first = log.stdout.split('\n').find(line => line.trim() !== '') ?? ''
-    if (first !== '') firstCommits.set(dir, first)
-  }
-  return ownerOf(first, me)
-}
-
 // At most this many modules read at once, and as many changes within each: a monorepo's
-// modules, each running openspec and git per change, would otherwise start hundreds of
+// modules, each running openspec and reading files per change, would otherwise start hundreds of
 // processes in one go
 export const AT_ONCE = 4
 export async function pool<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
@@ -307,6 +305,16 @@ export async function pool<T, R>(items: T[], limit: number, work: (item: T) => P
 
 // `full` false: just enough to know each change's turn, for a module seen in the overview
 export async function loadRoot($: EngineInterface, path: string, full = true): Promise<Root> {
+  // openspec/ and openspec/changes/ must be the module's own folders: one that is a
+  // symbolic link could lead anywhere, so nothing of the module is run or read
+  const isLinkIn = async (dir: string, name: string) => (await $.fs.list(dir).catch(() => [])).some(entry => entry.name === name && entry.isLink)
+  if (await isLinkIn(path, 'openspec')) throw new Error('openspec/ is a symbolic link: Spec Manager does not follow it')
+  if (await isLinkIn(`${path}/openspec`, 'changes')) throw new Error('openspec/changes/ is a symbolic link: Spec Manager does not follow it')
+  // A change folder that is a symbolic link is listed from openspec's answer alone: none
+  // of its documents is read
+  const linked = new Set(
+    (await $.fs.list(`${path}/openspec/changes`).catch(() => [])).filter(entry => entry.isLink).map(entry => entry.name),
+  )
   const [list, status, specs, archived] = await Promise.all([
     openspecList($, path),
     openspecStatus($, path).catch(() => ({ changes: [] })),
@@ -314,34 +322,29 @@ export async function loadRoot($: EngineInterface, path: string, full = true): P
     full ? openspecArchived($, path).catch(() => ({ changes: [] })) : { changes: [] },
   ])
   const artifactsOf = new Map<string, Artifact[]>()
-  const specPathsOf = new Map<string, string[]>()
   for (const one of status.changes ?? []) {
     const artifacts = artifactsFrom(one)
     // Nothing usable for this change: its documents are read from its folder instead
     if (artifacts.length > 0) artifactsOf.set(one.changeName, artifacts)
-    // Only what status gives: without it, the change's specs/ folders are read instead
-    const specFiles = one.artifactPaths?.specs?.existingOutputPaths
-    if (Array.isArray(specFiles) && specFiles.length > 0) specPathsOf.set(one.changeName, specFiles.map((file: string) => absolute(path, file)))
   }
-  // A change gone from the list (archived) frees its folder's name: who made it is
-  // forgotten, so a change made again under that name is asked of git anew
-  const names = new Set((list.changes ?? []).map((one: any) => `${path}/openspec/changes/${one.name}`))
-  for (const dir of firstCommits.keys()) {
-    if (dir.startsWith(`${path}/openspec/changes/`) && !names.has(dir)) firstCommits.delete(dir)
-  }
-  const changes: Change[] = await pool(list.changes ?? [], AT_ONCE, async (one: any) => {
+  // A change is one folder of openspec/changes/: a name that is a path (a `/`, a `..`)
+  // is not one, and is left out
+  const listed = (Array.isArray(list.changes) ? list.changes : []).filter((one: any) => isPlainName(one?.name))
+  const changes: Change[] = await pool(listed, AT_ONCE, async (one: any) => {
     const changeRoot = `${path}/openspec/changes/${one.name}`
-    // A failed `openspec status` read as no documents put every change in review
-    const files = artifactsOf.has(one.name) && specPathsOf.has(one.name) ? undefined : await filesOf($, changeRoot)
-    const artifacts = artifactsOf.get(one.name) ?? files?.artifacts ?? []
-    const specPaths = specPathsOf.get(one.name) ?? files?.specPaths ?? []
+    // The documents read come from the change's folder alone; a failed `openspec status`
+    // read as no documents put every change in review, so the folder says what is written
+    const none = { artifacts: [] as Artifact[], specPaths: [] as string[], readable: new Set<string>() }
+    const files = linked.has(one.name) ? none : await filesOf($, changeRoot)
+    const artifacts = artifactsOf.get(one.name) ?? files.artifacts
+    const { specPaths, readable } = files
     // A light read's digest, empty: typed rather than asserted, so a field Digest comes to
     // require is missed here at validation, not when the pane draws it
     const light: Digest = { specs: [], decisions: [], openQuestions: [] }
-    const [markdown, digest, owned] = await Promise.all([
-      $.fs.read(`${changeRoot}/tasks.md`).catch(() => ''),
-      full ? loadDigest($, changeRoot, specPaths) : light,
-      ownership($, path, changeRoot),
+    const tasksFile = `${changeRoot}/tasks.md`
+    const [markdown, digest] = await Promise.all([
+      readable.has(tasksFile) ? $.fs.read(tasksFile).catch(() => '') : '',
+      full ? loadDigest($, changeRoot, specPaths, readable) : light,
     ])
     const { sections, open } = parseTasks(markdown)
     const tasks = { done: one.completedTasks ?? 0, total: one.totalTasks ?? 0 }
@@ -352,12 +355,9 @@ export async function loadRoot($: EngineInterface, path: string, full = true): P
       sections,
       digest: full && markdown.trim() ? { ...digest, files: { ...digest.files, tasks: `${changeRoot}/tasks.md` } } : digest,
       lastModified: one.lastModified,
-      ...owned,
       ...whoseTurn(artifacts, tasks, open),
     }
   })
-  // The reader's own changes first
-  changes.sort((a, b) => Number(b.isMine) - Number(a.isMine))
   const archivedNames: string[] = (archived.changes ?? []).map((one: any) => one.name)
   return {
     path,
@@ -373,10 +373,8 @@ export const summarize = (base: string, root: Root): Module => ({
   name: moduleName(base, root.path),
   path: root.path,
   changes: root.changes.length,
-  mine: root.changes.filter(c => c.isMine).length,
-  you: root.changes.filter(c => c.isMine && c.turn === 'you').length,
-  ai: root.changes.filter(c => c.isMine && c.turn === 'ai').length,
-  others: [...new Set(root.changes.filter(c => !c.isMine).map(c => c.owner ?? '?'))],
+  you: root.changes.filter(c => c.turn === 'you').length,
+  ai: root.changes.filter(c => c.turn === 'ai').length,
   items: root.changes.map(c => {
     const stepper = steps(c)
     return {
@@ -384,8 +382,6 @@ export const summarize = (base: string, root: Root): Module => ({
       step: stepper.findIndex(s => s.state === 'current'),
       steps: stepper.length,
       turn: c.turn,
-      isMine: c.isMine,
-      owner: c.owner,
     }
   }),
   lastModified: root.changes.map(c => c.lastModified ?? '').sort().pop() || undefined,
@@ -438,7 +434,7 @@ export async function refreshOnce($: EngineInterface, s: Session, force: boolean
     const now = await $.clock.now()
     // Its own copy: `/spec-manager` may reset `found` while this one awaits
     let current = s.found
-    // Walking the tree is the costly part: redo it once a minute, or when asked
+    // Walking the tree is the costly part: redo it every 5 minutes, or when asked
     if (rediscover || !current || now - current.at > DISCOVER_EVERY_MS) {
       const isFirst = !current
       current = { ...(await discover($)), at: now }
@@ -446,13 +442,6 @@ export async function refreshOnce($: EngineInterface, s: Session, force: boolean
       // A reset asked while this walk ran picks again too (the walk's isFirst predates it)
       const isReset = s.isReset === true
       s.isReset = false
-      if (!s.hasOpened && current.paths.length > 0) {
-        s.hasOpened = true
-        // Refused (no surface to seat it): it opens by itself again at the next find
-        void $.ui.open({ id: PANE, title: TITLE }).catch(() => {
-          s.hasOpened = false
-        })
-      }
       if (isFirst || isReset || (await read($, view)).selected === undefined) {
         const selected = await initialSelection($, current.base, current.inside, current.paths)
         await update($, view, old => ({ ...old, selected }))

@@ -28,7 +28,6 @@ const fakeRepo = (on: any, { isBroken = () => false, isMissing = false, notJson 
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
     const [cmd, verb, flag] = e.argv
     const cwd = e.init?.cwd ?? ''
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (isMissing) return { deny: 'spawn openspec ENOENT' }
     if (verb === 'list' && flag === '--json' && notJson(cwd)) return { value: { exitCode: 0, stdout: 'A new version of openspec is available\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (isBroken(cwd)) return { value: { exitCode: 1, stdout: '', stderr: 'config.yaml: bad schema', isStdoutTruncated: false, isStderrTruncated: false } }

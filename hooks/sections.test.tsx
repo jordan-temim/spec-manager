@@ -27,14 +27,22 @@ const fakeRepo = (on: any, tasks = TASKS) => {
   on('session.cwd', () => ({ value: '/repo' }))
   on('fs.exists', (_: unknown, e: { path: string }) => ({ value: ['/repo/.git', `${MODULE}/openspec`].includes(e.path) }))
   on('fs.list', (_: unknown, e: { path: string }) => ({
-    value: (e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : [])
-      .map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })),
+    value: [
+      ...(e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : []).map(name => ({
+        name,
+        kind: 'dir',
+        size: 0,
+        mtimeMs: 0,
+        isLink: false,
+      })),
+      // The change's tasks.md, found in its folder: only a document found there is read
+      ...(e.path === CHANGE ? [{ name: 'tasks.md', kind: 'file', size: 0, mtimeMs: 0, isLink: false }] : []),
+    ],
   }))
   on('fs.read', (_: unknown, e: { path: string }) => (e.path === `${CHANGE}/tasks.md` ? { value: tasks } : { deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n')
     const paths = Object.fromEntries(['proposal', 'specs', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${n}.md`] }]))
     if (verb === 'status') return out(JSON.stringify({ changes: [{ changeName: 'add-refunds', artifactPaths: paths }] }))
     if (flag === '--specs') return out(JSON.stringify({ specs: [{ id: 'invoices', requirementCount: 4 }, { id: 'payouts', requirementCount: 2 }] }))

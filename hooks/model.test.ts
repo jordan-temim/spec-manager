@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { absolute, artifactsFrom, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, mdText, moduleName, clip, ownerOf, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
+import { artifactsFrom, isDocOf, isPlainName, artifactsFromFiles, fileUrl, isNotInstalled, mdHref, mdText, moduleName, clip, parseDesign, parseTasks, partialMatches, resolveModule, settle, specCounts, specName, steps, whoseTurn, whyLine } from './model'
 import type { Artifact, Change } from '../types'
 
 const TASKS = `# Tasks
@@ -283,29 +283,6 @@ describe('modules', () => {
   })
 })
 
-describe('ownership', () => {
-  test('a change is mine when I made its first commit, or when nobody committed it yet', () => {
-    expect(ownerOf('me@example.org\tMe\nmarie@example.org\tMarie\n', 'Me@Example.org')).toEqual({ isMine: true })
-    expect(ownerOf('', 'me@example.org')).toEqual({ isMine: true })
-  })
-
-  test("someone else's first commit makes it theirs, named after them", () => {
-    expect(ownerOf('marie@example.org\tMarie\nme@example.org\tMe\n', 'me@example.org')).toEqual({
-      isMine: false,
-      owner: 'Marie',
-    })
-  })
-
-  test("the reader's email is compared trimmed and whatever its case", () => {
-    expect(ownerOf('Me@Example.org\tMe\n', ' me@example.org\n').isMine).toBe(true)
-    expect(ownerOf('paul@example.org\tPaul\n', '   ').isMine).toBe(true)
-  })
-
-  test('without a git identity, every change is mine', () => {
-    expect(ownerOf('marie@example.org\tMarie\n', '')).toEqual({ isMine: true })
-  })
-})
-
 describe('selection', () => {
   test('a single module is shown directly, even one that appeared after the overview was picked', () => {
     expect(settle('all', ['/repo'])).toBe('/repo')
@@ -402,10 +379,7 @@ describe('spec paths from openspec', () => {
     expect(specName('openspec/changes/add-refunds/specs/billing/refunds/spec.md')).toBe('billing/refunds')
   })
 
-  test('Windows paths are absolute, and name their capability', () => {
-    expect(absolute('C:/repo/pay', 'C:\\repo\\pay\\openspec\\changes\\a\\specs\\refunds\\spec.md')).toBe(
-      'C:/repo/pay/openspec/changes/a/specs/refunds/spec.md',
-    )
+  test('a Windows path names its capability', () => {
     expect(specName('C:\\repo\\pay\\openspec\\changes\\a\\specs\\refunds\\spec.md')).toBe('refunds')
   })
 
@@ -414,11 +388,6 @@ describe('spec paths from openspec', () => {
     expect(specName('specs/refunds/spec.md')).toBe('refunds')
   })
 
-  test('a relative path is read from the module folder', () => {
-    expect(absolute('/repo/pay', 'openspec/changes/a/specs/x/spec.md')).toBe('/repo/pay/openspec/changes/a/specs/x/spec.md')
-    expect(absolute('/repo/pay', './openspec/changes/a/specs/x/spec.md')).toBe('/repo/pay/openspec/changes/a/specs/x/spec.md')
-    expect(absolute('/repo/pay', '/elsewhere/spec.md')).toBe('/elsewhere/spec.md')
-  })
 })
 
 describe('tasks.md headings', () => {
@@ -484,6 +453,15 @@ describe('markdown links', () => {
   test("words keep Markdown's opening bracket and backslash as written", () => {
     expect(mdText('a[b\\c_d')).toBe('a\\[b\\\\c\\_d')
   })
+  // A name the renderer would turn into a link by itself stays words: never a link out of
+  // the pane to a site, an address or a URL the repository chose
+  test('a name that reads as a site, an email or a URL is escaped out of being a link', () => {
+    expect(mdText('www.example.com')).toBe('www\\.example\\.com')
+    expect(mdText('me@example.org')).toBe('me\\@example\\.org')
+    expect(mdText('https://example.com')).toBe('https\\://example\\.com')
+    expect(mdText('~a~')).toBe('\\~a\\~')
+    expect(mdText('add-refunds')).toBe('add-refunds')
+  })
   test("a file's URL keeps its escapes: only what fileUrl leaves, ( and ), is encoded", () => {
     expect(mdHref(fileUrl('/repo/mes docs/a(1).md'))).toBe('file:///repo/mes%20docs/a%281%29.md')
   })
@@ -496,5 +474,31 @@ describe('markdown links', () => {
   })
   test("a target's parentheses and spaces encoded", () => {
     expect(mdHref('file:///repo/a(1) b.md')).toBe('file:///repo/a%281%29%20b.md')
+  })
+})
+
+describe('what the pane may read', () => {
+  const change = '/repo/pay/openspec/changes/add-refunds'
+
+  test("a change's name is one folder, never a path", () => {
+    for (const name of ['add-refunds', 'add refunds', 'v2.1-fix', '...x']) expect(isPlainName(name)).toBe(true)
+    for (const name of ['', '.', '..', 'a/b', '../etc', 'a\\b', 'a\u0000b', 42, undefined, null]) expect(isPlainName(name)).toBe(false)
+  })
+
+  test('a document is a .md file inside the change folder, without a way out of it', () => {
+    for (const file of ['tasks.md', 'specs/refunds/spec.md', 'notes..md']) expect(isDocOf(`${change}/${file}`, change)).toBe(true)
+    const outside = [
+      '/etc/passwd',
+      `${change}/tasks.txt`,
+      `${change}/tasks.md.bak`,
+      `${change}/../other/tasks.md`,
+      `${change}/specs/../../../x.md`,
+      `${change}/./tasks.md`,
+      `${change}//tasks.md`,
+      `${change}-other/tasks.md`,
+      `${change}.md`,
+      'openspec/changes/add-refunds/tasks.md',
+    ]
+    for (const file of outside) expect(isDocOf(file, change)).toBe(false)
   })
 })

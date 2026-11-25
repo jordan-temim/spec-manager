@@ -40,7 +40,6 @@ test('a spec edited in place shows its new counts at the next poll', async ($, o
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs' || flag === '--archived') return out({ specs: [], changes: [] })
     if (verb === 'status') {
       const paths = Object.fromEntries(['proposal', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${n}.md`] }]))
@@ -60,6 +59,8 @@ test('a spec edited in place shows its new counts at the next poll', async ($, o
   }
 
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  // Nothing is read before /spec-manager: the command starts the pane and its polling
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
   expect(await counts()).toContain('1 req · 1 scen')
 

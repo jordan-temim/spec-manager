@@ -1,9 +1,8 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { DISCOVER_EVERY_MS, POLL_MS } from './load'
 
-// How the search for modules goes: a few folders listed at a time, and an auto-open the
-// host refused. (A search cut short is tested on its own, in discover.test.ts)
+// How the search for modules goes: a few folders listed at a time. (A search cut short is
+// tested on its own, in discover.test.ts)
 
 // A repository of `tree` (a folder's sub-folders by path), a module in /repo/a; every
 // listing counted, with how many run at once when `isSlow` lets them overlap. `open`
@@ -26,7 +25,7 @@ const bigRepo = (on: any, tree: (path: string) => string[], { isSlow = false, op
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => ({
-    value: { exitCode: 0, stdout: e.argv[0] === 'git' ? '' : JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
+    value: { exitCode: 0, stdout: JSON.stringify({ changes: [], specs: [] }), stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
   }))
   on('command.register', () => ({ value: { command: 'spec-manager' } }))
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
@@ -47,23 +46,4 @@ test('the search lists a few folders at a time, however deep the tree', async ($
   // Several at once, never more than four
   expect(seen.maxInFlight).toBeGreaterThan(1)
   expect(seen.maxInFlight).toBeLessThanOrEqual(4)
-})
-
-test('a pane the host refused to open opens by itself at the next search', async ($, on) => {
-  // The first open is refused, the next ones go through
-  let asked = 0
-  const { clock, seen } = bigRepo(on, () => [], {
-    open: () => (++asked === 1 ? { deny: 'no surface yet' } : { value: { isPlaced: true } }),
-  })
-  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
-  await clock.settle()
-  expect(seen.opened).toBe(1)
-  // The search again, once the modules found are due for it
-  await clock.advance(DISCOVER_EVERY_MS + POLL_MS)
-  await clock.settle()
-  expect(seen.opened).toBe(2)
-  // Open now: the searches after it leave it be
-  await clock.advance(DISCOVER_EVERY_MS + POLL_MS)
-  await clock.settle()
-  expect(seen.opened).toBe(2)
 })

@@ -55,7 +55,6 @@ const fakeRepo = (on: any, names: string[]) => {
     }
     const [cmd, verb, flag] = e.argv
     const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'bad schema' : '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n')
     if (broken.has(cwd)) return out('', 1)
     if (flag === '--specs' || flag === '--archived' || verb === 'status') return out(JSON.stringify({ changes: [], specs: [] }))
     const name = cwd.split('/').pop()
@@ -65,7 +64,6 @@ const fakeRepo = (on: any, names: string[]) => {
   on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   const openspecIn = (module: string) => runs.filter(r => r.argv[0] === 'openspec' && r.cwd === `/repo/packages/${module}`).length
-  const gitLogs = () => runs.filter(r => r.argv[0] === 'git' && r.argv[1] === 'log').length
   // How many times a module's openspec/ was fingerprinted: once per poll that looked at it
   const walksOf = (module: string) => listed.filter(path => path === `/repo/packages/${module}/openspec`).length
   return {
@@ -74,7 +72,6 @@ const fakeRepo = (on: any, names: string[]) => {
     listed,
     openspecIn,
     walksOf,
-    gitLogs,
     touch: (module: string) => (mtime[`/repo/packages/${module}`] = (mtime[`/repo/packages/${module}`] ?? 0) + 1),
     breakModule: (module: string) => broken.add(`/repo/packages/${module}`),
     maxInFlight: () => maxInFlight,
@@ -90,6 +87,8 @@ const poll = async (clock: any) => {
 test('a file moved in one module reads that module again, not the others', async ($, on) => {
   const repo = fakeRepo(on, ['paiement', 'catalogue', 'auth'])
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  // Nothing is read before /spec-manager: the command starts the pane and its polling
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   const before = { paiement: repo.openspecIn('paiement'), catalogue: repo.openspecIn('catalogue'), auth: repo.openspecIn('auth') }
 
@@ -110,6 +109,7 @@ test('a failing module is read again at each poll, alone', async ($, on) => {
   const repo = fakeRepo(on, ['paiement', 'catalogue'])
   repo.breakModule('catalogue')
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   const paiement = repo.openspecIn('paiement')
   // Each poll reads it again, not just the first one
@@ -125,6 +125,7 @@ test('a large repository reads a few modules at a time', async ($, on) => {
   const names = Array.from({ length: 12 }, (_, i) => `m${i}`)
   const repo = fakeRepo(on, names)
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   // 12 modules: unbounded, all twelve read at once. Four at a time, and several of them
   expect(repo.openspecIn('m11')).toBeGreaterThan(0)
@@ -132,28 +133,13 @@ test('a large repository reads a few modules at a time', async ($, on) => {
   expect(repo.maxModules()).toBeLessThanOrEqual(4)
 })
 
-test("a change's author is asked of git once, not at every read", async ($, on) => {
-  const repo = fakeRepo(on, ['paiement'])
-  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
-  await repo.clock.settle()
-  expect(repo.gitLogs()).toBe(1)
-  // A forced read, then a moved file: each reads the change again, neither asks its author
-  const atStart = repo.openspecIn('paiement')
-  await run($, '')
-  await repo.clock.settle()
-  const afterForced = repo.openspecIn('paiement')
-  expect(afterForced).toBeGreaterThan(atStart)
-  repo.touch('paiement')
-  await poll(repo.clock)
-  expect(repo.openspecIn('paiement')).toBeGreaterThan(afterForced)
-  expect(repo.gitLogs()).toBe(1)
-})
-
 test('a session start that comes again replaces the poll, it does not add one', async ($, on) => {
   const repo = fakeRepo(on, ['paiement'])
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   // One poll: the module's folder fingerprinted once, not once per start
   const walks = () => repo.walksOf('paiement')
@@ -166,6 +152,7 @@ test('a module taken away leaves the pane at the next search, nothing else movin
   const names = ['paiement', 'catalogue', 'auth']
   const repo = fakeRepo(on, names)
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   const overview = async () => {
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', ...PANE, props })
@@ -199,6 +186,7 @@ test('a session that exits stops its poll', async ($, on) => {
   const repo = fakeRepo(on, ['paiement'])
   on('session.end', (_: unknown, e: { sessionId: string }) => ({ sessionId: e.sessionId }))
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await repo.clock.settle()
   const polls = () => repo.walksOf('paiement')
   await poll(repo.clock)

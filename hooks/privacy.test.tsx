@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-// Spec Manager reads OpenSpec files and git, and nothing of the conversation. This
+// Spec Manager reads OpenSpec files, runs openspec alone (never git), and nothing of the conversation. This
 // test runs a whole session against a fake repository, records every call the plugin
 // makes outside itself, and fails on anything beyond that.
 
@@ -12,6 +12,9 @@ const DIRS: Record<string, [string, 'dir' | 'file'][]> = {
   '/repo': [['.git', 'dir'], ['packages', 'dir']],
   '/repo/packages': [['paiement', 'dir']],
   [MODULE]: [['openspec', 'dir'], ['src', 'dir']],
+  [CHANGE]: [['proposal.md', 'file'], ['design.md', 'file'], ['tasks.md', 'file'], ['specs', 'dir']],
+  [`${CHANGE}/specs`]: [['refunds', 'dir']],
+  [`${CHANGE}/specs/refunds`]: [['spec.md', 'file']],
 }
 const EXISTING = new Set(['/repo/.git', `${MODULE}/openspec`])
 const FILES: Record<string, string> = {
@@ -27,10 +30,11 @@ const ARTIFACTS = {
   tasks: { existingOutputPaths: [`${CHANGE}/tasks.md`] },
 }
 
-type Seen = { reads: string[]; lists: string[]; exists: string[]; runs: string[][]; conversation: string[] }
+type Init = { env?: Record<string, string>; timeoutMs?: number }
+type Seen = { reads: string[]; lists: string[]; exists: string[]; runs: string[][]; inits: (Init | undefined)[]; conversation: string[] }
 
 const session = (on: any): { seen: Seen; clock: ReturnType<typeof mock.clock> } => {
-  const seen: Seen = { reads: [], lists: [], exists: [], runs: [], conversation: [] }
+  const seen: Seen = { reads: [], lists: [], exists: [], runs: [], inits: [], conversation: [] }
   const clock = mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: REPO }))
@@ -46,11 +50,11 @@ const session = (on: any): { seen: Seen; clock: ReturnType<typeof mock.clock> } 
     seen.reads.push(e.path)
     return e.path in FILES ? { value: FILES[e.path] } : { deny: 'ENOENT' }
   })
-  on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
+  on('process.run', (_: unknown, e: { argv: readonly string[]; init?: Init }) => {
     seen.runs.push([...e.argv])
+    seen.inits.push(e.init)
     const [cmd, verb, flag] = e.argv
     const json = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : 'me@example.org\tMe\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (verb === 'status') return json({ changes: [{ changeName: 'add-refunds', artifactPaths: ARTIFACTS }] })
     if (flag === '--specs') return json({ specs: [] })
     if (flag === '--archived') return json({ changes: [] })
@@ -73,10 +77,15 @@ const session = (on: any): { seen: Seen; clock: ReturnType<typeof mock.clock> } 
 const PANE = { component: 'Pane', requestId: 'spec-manager' } as const
 const props = { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } as const
 
-test('a whole session reads OpenSpec files and git only, and nothing of the conversation', async ($, on) => {
+test('a whole session reads OpenSpec files and runs openspec only, and nothing of the conversation', async ($, on) => {
   const { seen, clock } = session(on)
   await $.session.start({ cwd: REPO, surface: 'desktop', isInteractive: true })
   await clock.settle()
+  // Before /spec-manager, nothing of the repository: no folder listed, no file read,
+  // no openspec or git run, however long the session waits
+  await clock.advance(10 * 60000)
+  await clock.settle()
+  expect(seen).toEqual({ reads: [], lists: [], exists: [], runs: [], inits: [], conversation: [] })
   await $.command.run({ command: 'spec-manager', args: 'paiement', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'spec-manager', surface, ...PANE, props })
@@ -101,18 +110,17 @@ test('a whole session reads OpenSpec files and git only, and nothing of the conv
   // Paths tested: only whether a folder is a repository top or holds openspec/
   for (const path of seen.exists) expect(/\/(\.git|openspec)$/.test(path)).toBe(true)
 
-  // Commands: openspec in read-only listing mode, and two read-only git queries
+  // Commands: openspec in read-only listing mode, nothing else (git included)
   expect(seen.runs.length > 0).toBe(true)
-  for (const argv of seen.runs) {
+  seen.runs.forEach((argv, i) => {
     const [cmd, verb] = argv
-    if (cmd === 'openspec') {
-      expect(['list', 'status'].includes(verb ?? '')).toBe(true)
-      expect(argv.includes('--json')).toBe(true)
-    } else {
-      expect(cmd).toBe('git')
-      const isEmail = verb === 'config' && argv[2] === 'user.email' && argv.length === 3
-      const isAuthor = verb === 'log' && /\/openspec\/changes\/[^/]+$/.test(argv[argv.length - 1] ?? '')
-      expect(isEmail || isAuthor).toBe(true)
-    }
-  }
+    expect(cmd).toBe('openspec')
+    expect(['list', 'status'].includes(verb ?? '')).toBe(true)
+    expect(argv.includes('--json')).toBe(true)
+    // Stopped if it hangs, after at most 15 seconds
+    expect((seen.inits[i]?.timeoutMs ?? Infinity) <= 15000).toBe(true)
+    // Its telemetry off: nothing sent out through it
+    expect(seen.inits[i]?.env?.OPENSPEC_TELEMETRY).toBe('0')
+    expect(seen.inits[i]?.env?.DO_NOT_TRACK).toBe('1')
+  })
 })

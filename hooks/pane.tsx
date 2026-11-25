@@ -189,7 +189,6 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
           <Box flexDirection="column">
             {mark('you', tag('YOU', BLUE), 'Your move, on a change of yours')}
             {mark('ai', tag('AI', CLAY), "The AI's move")}
-            {mark('owner', tag('ana', MUTED), "Someone else's change, in grey: whose it is")}
           </Box>
           <Box flexDirection="column">
             {mark('task', <Text color={CLAY}>◦</Text>, 'A task to do: the AI builds them all')}
@@ -289,18 +288,10 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       {count === undefined ? ' ' : ` ${count} `}
     </Text>
   )
-  // Someone else's change: their name in a grey tag, in place of YOU / AI
-  const ownerTag = (owner?: string) => (
-    <Text bold inverse color={MUTED}>
-      {` ${owner ?? '?'} `}
-    </Text>
-  )
-  const tagOf = (change: Change) => (change.isMine ? turnTag(change.turn) : ownerTag(change.owner))
-  // Only the reader's own changes count towards YOU / AI
+  const tagOf = (change: Change) => turnTag(change.turn)
   const turnSummary = (list: Change[]) => {
-    const mine = list.filter(c => c.isMine)
-    const yours = mine.filter(c => c.turn === 'you').length
-    return turnCounts(yours, mine.length - yours)
+    const yours = list.filter(c => c.turn === 'you').length
+    return turnCounts(yours, list.length - yours)
   }
   // The count first, then the usual tag ("1 [YOU]  2 [AI]"): a count inside the tag
   // read like a name or a score
@@ -391,8 +382,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
   const waitingOn = (change: Change, content: any) => (
     <Box flexDirection="column" marginTop={1} paddingLeft={2}>
       <Box flexDirection="row">
-        <Text bold color={change.isMine ? BLUE : MUTED}>
-          ● Waiting on {change.isMine ? 'you' : (change.owner ?? 'its author')}
+        <Text bold color={BLUE}>
+          ● Waiting on you
         </Text>
       </Box>
       {content}
@@ -449,7 +440,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                 s.tasks.map(t => (
                   <Box flexDirection="row" paddingLeft={2}>
                     <Box flexShrink={0}>
-                      <Text color={t.isDone || !change.isMine ? MUTED : CLAY}>
+                      <Text color={t.isDone ? MUTED : CLAY}>
                         {t.isDone ? '✓' : '◦'}{' '}
                         {t.id ? `${t.id} ` : ''}
                       </Text>
@@ -503,17 +494,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
             undefined,
             files.design,
           )}
-        {/* The questions themselves, in your colour: they wait on you before /opsx:apply.
-            On someone else's plan they wait on its author: grey, as the rest of it */}
+        {/* The questions themselves, in your colour: they wait on you before /opsx:apply */}
         {openQuestions.length > 0 && (
           <Box flexDirection="column" paddingLeft={2}>
-            <Text bold color={change.isMine ? BLUE : MUTED}>
+            <Text bold color={BLUE}>
               ⚠ {openQuestions.length} open question{openQuestions.length === 1 ? '' : 's'} to settle
             </Text>
             {openQuestions.map(q => (
               <Box flexDirection="row" paddingLeft={2}>
                 <Box flexShrink={0}>
-                  <Text color={change.isMine ? BLUE : MUTED}>? </Text>
+                  <Text color={BLUE}>? </Text>
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text>{q}</Text>
@@ -563,19 +553,16 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         <Box flexDirection="column">
           {!isLight && planDigest(change)}
           {/* /opsx:apply writes no file until a task is checked: say so, for a long first task */}
-          {/* What to type is the author's: someone else's plan says only whom it waits on */}
           {waitingOn(
             change,
-            change.isMine ? (
-              <Box flexDirection="column">
-                {hint('Review the plan, then /opsx:apply')}
-                {hint(
-                  change.tasks.total === 0
-                    ? 'tasks.md lists no task yet: nothing to apply until it does.'
-                    : 'Already applying? This moves on once the first task is checked.',
-                )}
-              </Box>
-            ) : undefined,
+            <Box flexDirection="column">
+              {hint('Review the plan, then /opsx:apply')}
+              {hint(
+                change.tasks.total === 0
+                  ? 'tasks.md lists no task yet: nothing to apply until it does.'
+                  : 'Already applying? This moves on once the first task is checked.',
+              )}
+            </Box>,
           )}
         </Box>
       )}
@@ -594,14 +581,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
                 `Archiving will merge ${change.digest.specs.length} spec${change.digest.specs.length === 1 ? '' : 's'}: ` +
                   change.digest.specs.map(s => s.name).join(' · '),
               )}
-            {change.isMine && hint('/opsx:archive')}
+            {hint('/opsx:archive')}
           </Box>,
         )}
 
       {change.aiNext && (
         <Box flexDirection="column" marginTop={1} paddingLeft={2}>
-          <Text bold color={change.isMine ? CLAY : MUTED}>▶ AI next</Text>
-          {taskRow(change.aiNext, change.isMine ? CLAY : MUTED)}
+          <Text bold color={CLAY}>▶ AI next</Text>
+          {taskRow(change.aiNext, CLAY)}
         </Box>
       )}
     </Box>
@@ -616,8 +603,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
     </Box>
   )
 
-  // Several modules and none picked: the reader's modules first, the ones waiting on
-  // them on top; then the other people's, greyed, named after who created them
+  // Several modules and none picked: those with changes in progress, the ones waiting on
+  // you on top; then those with nothing in progress, then those openspec failed in
   if (selected === ALL && modules.length > 1) {
     const rank = (m: Module) => (m.you > 0 ? 0 : m.ai > 0 ? 1 : 2)
     // Latest activity first, by the dates themselves; one that does not parse goes last
@@ -626,8 +613,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
       return Number.isFinite(at) ? at : -Infinity
     }
     const byActivity = (a: Module, b: Module) => activity(b) - activity(a) || 0
-    const mine = modules.filter(m => m.mine > 0).sort((a, b) => rank(a) - rank(b) || byActivity(a, b))
-    const others = modules.filter(m => m.mine === 0 && m.changes > 0).sort(byActivity)
+    const active = modules.filter(m => m.changes > 0).sort((a, b) => rank(a) - rank(b) || byActivity(a, b))
     const idle = modules.filter(m => m.changes === 0 && !m.error)
     const failing = modules.filter(m => m.error)
     const yours = modules.reduce((n, m) => n + m.you, 0)
@@ -645,14 +631,14 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
     const changeLine = (line: Module['items'][number]) => (
       <Box flexDirection="row" alignItems="center" paddingLeft={2}>
         <Box flexGrow={1} flexShrink={1} minWidth={0}>
-          <Text dimColor={!line.isMine} wrap="truncate-end">
+          <Text wrap="truncate-end">
             {line.name}
           </Text>
         </Box>
         <Box flexShrink={0} marginLeft={1}>
           {Svg ? (
             <Svg
-              source={dotsSvg(line.step, line.steps, line.isMine ? turnColor(line.turn) : MUTED)}
+              source={dotsSvg(line.step, line.steps, turnColor(line.turn))}
               alt={`step ${line.step + 1} of ${line.steps}`}
               width={dotsWidth(line.steps)}
               height={DOT}
@@ -661,31 +647,24 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
             // One per step: done, current in the actor's colour, to come
             <Text>
               <Text dimColor>{'●'.repeat(Math.max(0, line.step))}</Text>
-              <Text bold color={line.isMine ? turnColor(line.turn) : MUTED}>◉</Text>
+              <Text bold color={turnColor(line.turn)}>◉</Text>
               <Text dimColor>{'○'.repeat(Math.max(0, line.steps - 1 - line.step))}</Text>
             </Text>
           )}
         </Box>
         <Box flexShrink={0} width={TAG_COLUMN} marginLeft={1} overflow="hidden">
-          {line.isMine ? (
-            turnTag(line.turn)
-          ) : (
-            <Text dimColor wrap="truncate-end">
-              {line.owner ?? '?'}
-            </Text>
-          )}
+          {turnTag(line.turn)}
         </Box>
       </Box>
     )
     // The card lights its frame under the pointer, and carries a real button: a
     // plain label alone gave no sign it could be clicked
-    const card = (m: Module, isOthers = false) => (
+    const card = (m: Module) => (
       <Box
         key={`card:${m.path}`}
         flexDirection="column"
         borderStyle="round"
         borderColor={MUTED}
-        borderDimColor={isOthers}
         backgroundColor={Svg ? WASH : undefined}
         hover={{ borderColor: GREEN, borderDimColor: false }}
         paddingX={1}
@@ -695,7 +674,7 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         <Box flexDirection="row" alignItems="center">
           <Box flexGrow={1} flexShrink={1} minWidth={0}>
             {/* Plain text: on the desktop a plain Button took two clicks; Open is the action */}
-            <Text bold dimColor={isOthers} wrap="truncate-end">
+            <Text bold wrap="truncate-end">
               {m.name}
             </Text>
           </Box>
@@ -735,10 +714,8 @@ export async function renderPane($: EngineInterface, e: RenderInput<'Pane'>): Pr
         {frame(
           <Box flexDirection="column">
             {heading('MODULES', modules.length, (yours > 0 || ais > 0) && turnCounts(yours, ais))}
-            {mine.length > 0 && caption('MINE')}
-            {mine.map(m => card(m))}
-            {others.length > 0 && caption('OTHERS')}
-            {others.map(m => card(m, true))}
+            {active.length > 0 && caption('IN PROGRESS')}
+            {active.map(m => card(m))}
             {idle.length > 0 && caption('NO ACTIVE CHANGE')}
             {idle.map(row)}
             {failing.length > 0 && caption('OPENSPEC FAILED')}

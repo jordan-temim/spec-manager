@@ -39,7 +39,6 @@ const fakeRepo = (on: any, dirs = DIRS, files = FILES, totalTasks = 0, status?: 
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (stdout: string, exitCode = 0) => ({ value: { exitCode, stdout, stderr: exitCode ? 'unknown command' : '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return out(verb === 'config' ? 'me@example.org\n' : '')
     if (verb === 'status') return status === undefined ? out('', 1) : out(JSON.stringify(status))
     if (flag === '--specs' || flag === '--archived') return out(JSON.stringify({ specs: [], changes: [] }))
     return out(JSON.stringify({ changes: [{ name: 'add-refunds', completedTasks: 0, totalTasks }] }))

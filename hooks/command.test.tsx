@@ -24,7 +24,7 @@ const fakeRepo = (on: any, modules: string[], beforeList: (path: string) => Prom
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
-    const stdout = e.argv[0] === 'git' ? (e.argv[1] === 'config' ? 'me@example.org\n' : '') : JSON.stringify({ changes: [], specs: [] })
+    const stdout = JSON.stringify({ changes: [], specs: [] })
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('command.register', () => ({ value: { command: 'spec-manager' } }))
@@ -135,6 +135,8 @@ test('a module made while a poll is under way is still found by name', async ($,
   })
 
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  // Nothing is read before /spec-manager: the command starts the pane and its polling
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
   // auth made, and the next poll caught mid-read
   modules.push('auth')

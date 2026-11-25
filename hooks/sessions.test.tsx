@@ -34,13 +34,13 @@ const fakeRepos = (on: any, session: () => { id: string; cwd: string }) => {
   }))
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
-    const [cmd, verb, flag] = e.argv
+    const [, verb, flag] = e.argv
     const change = CHANGES[e.init?.cwd ?? '']
     // `openspec list --json` lists the module's change; specs, archive, status nothing
     const body = change && verb === 'list' && flag === '--json'
       ? { changes: [{ name: change, completedTasks: 0, totalTasks: 0 }] }
       : { changes: [], specs: [] }
-    const stdout = cmd === 'git' ? (verb === 'config' ? 'me@example.org\n' : '') : JSON.stringify(body)
+    const stdout = JSON.stringify(body)
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('command.register', () => ({ value: { command: 'spec-manager' } }))
@@ -71,12 +71,14 @@ test('two sessions in one process keep their own modules', async ($, on) => {
   const { clock, opened } = fakeRepos(on, () => ({ id: current, cwd: REPOS[current] }))
 
   await $.session.start({ cwd: REPOS.a, surface: 'desktop', isInteractive: true })
+  await run($, '')
   await clock.settle()
   current = 'b'
   await $.session.start({ cwd: REPOS.b, surface: 'desktop', isInteractive: true })
+  await run($, '')
   await clock.settle()
 
-  // Each pane opened by itself in its own session. ui.open carries only the pane's id
+  // Each pane opened by its own session's /spec-manager. ui.open carries only the pane's id
   // and title, the same for both: what each shows is checked on the drawing below
   expect(opened).toEqual(['a', 'b'])
   // b's pane shows b's module, none of a's
@@ -101,24 +103,25 @@ test('after /clear, the pane goes on with its state and its countdown', async ($
   const countdown = async () => (await drawn($, /refresh in/))?.match(/refresh in \d+s/)?.[0]
 
   await $.session.start({ cwd: REPOS.a, surface: 'desktop', isInteractive: true })
+  await run($, '')
   await clock.settle()
   await clock.advance(3000)
   await clock.settle()
-  expect(await countdown()).toBe('refresh in 7s')
+  expect(await countdown()).toBe('refresh in 27s')
 
   // /clear: the session ends, the process goes on under another id
   await $.session.end({ reason: 'clear', sessionId: 'before-clear', resume: { id: 'before-clear' } })
   id = 'after-clear'
   await clock.advance(2000)
   await clock.settle()
-  expect(await countdown()).toBe('refresh in 5s')
-  // The pane opened once, at the start: /clear does not open it again
+  expect(await countdown()).toBe('refresh in 25s')
+  // The pane opened once, by /spec-manager: /clear does not open it again
   expect(opened).toEqual(['before-clear'])
   // Past the poll, which now runs under the new id: the countdown starts over, and the
   // pane still shows the module's change, read again by that poll
-  await clock.advance(6000)
+  await clock.advance(26000)
   await clock.settle()
-  expect(await countdown()).toBe('refresh in 9s')
+  expect(await countdown()).toBe('refresh in 29s')
   expect(await drawn($, /paiement-change/)).toBeDefined()
   // The command still knows the modules found before
   expect(await run($, 'paiement')).toBe('Showing packages/paiement.')
@@ -132,9 +135,11 @@ test('a session that ends leaves the other one as it was', async ($, on) => {
   const countdown = async () => (await drawn($, /refresh in/))?.match(/refresh in \d+s/)?.[0]
 
   await $.session.start({ cwd: REPOS.a, surface: 'desktop', isInteractive: true })
+  await run($, '')
   await clock.settle()
   current = 'b'
   await $.session.start({ cwd: REPOS.b, surface: 'desktop', isInteractive: true })
+  await run($, '')
   await clock.settle()
   // a exits
   await $.session.end({ reason: 'prompt_input_exit', sessionId: 'a', resume: { id: 'a' } })
@@ -142,6 +147,6 @@ test('a session that ends leaves the other one as it was', async ($, on) => {
   await clock.settle()
   // b goes on: its module, its countdown, its command
   expect(await drawn($, /catalogue-change/)).toBeDefined()
-  expect(await countdown()).toBe('refresh in 7s')
+  expect(await countdown()).toBe('refresh in 27s')
   expect(await run($, 'catalogue')).toBe('Showing packages/catalogue.')
 })

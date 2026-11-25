@@ -19,9 +19,8 @@ While you work with Claude on OpenSpec changes, it answers at a glance:
 - **Where is each change in its cycle?** A stepper over OpenSpec's own steps: `proposal › specs › design › tasks › apply › archive`.
 - **Who does the next step?** An `AI` or `YOU` tag on each of your changes, and how many of each at the top (`2 [YOU]  1 [AI]`): `AI` when the AI builds something (writes the plan, codes the tasks), `YOU` when the step is yours (review the plan, check before archiving).
 - **How far along is it?** Task progress per change and per `tasks.md` section.
-- **Which are mine?** In a shared repository, other people's changes are greyed and named after their author.
 
-It only reads your files and runs `openspec` and `git` locally: no network request, no telemetry (see [What it runs, reads and sends](#what-it-runs-reads-and-sends)).
+It only reads your files and runs `openspec` locally, never `git`: no network request, no telemetry (see [What it runs, reads and sends](#what-it-runs-reads-and-sends)).
 
 ## Install
 
@@ -32,13 +31,13 @@ claude plugin install spec-manager@spec-manager --scope user
 
 or, inside a terminal Claude Code session, `/plugin install spec-manager --marketplace jordan-temim/spec-manager`. A plugin installed at user scope also loads in the desktop Code tab.
 
-Then start a new session in a project that has an `openspec/` folder: the pane opens by itself (elsewhere it stays closed until an `openspec/` folder appears), and `/spec-manager` reopens it. It needs Claude Code 2.1.309 or later and the `openspec` CLI (see [Requirements](#requirements)).
+Then run `/spec-manager` in a session: the pane opens, and only then does it look at the repository. A session start opens nothing and runs nothing. It needs Claude Code 2.1.309 or later and the `openspec` CLI (see [Requirements](#requirements)).
 
 ## What it looks like
 
 ### In the desktop Code tab
 
-With several modules, the session opened at the repository top shows an overview: your modules first, then other people's, then the modules with nothing in progress.
+With several modules, the session opened at the repository top shows an overview: the modules with changes in progress first, then those with nothing in progress.
 
 <p align="center"><img src="https://github.com/jordan-temim/spec-manager/releases/download/v0.1.0/desktop-overview.png" alt="The overview in the desktop pane: five modules, three changes waiting on you, two on the AI" /></p>
 
@@ -84,7 +83,7 @@ The tag is inferred from OpenSpec's files alone, with no convention of the pane'
 A module is any folder holding an `openspec/`, up to 5 levels below the repository top (the nearest `.git` upward), skipping hidden folders, `node_modules`, `dist`, `build`, `target` and `vendor`.
 
 - **Session opened inside a module:** the pane shows that module, with `‹ All modules` to go up.
-- **Session opened at the top:** the overview above, one card per module with a line per active change (its name, the stepper as six dots lined up in a column, then its tag or its author). Yours first, the ones waiting on you on top. `Open ›` opens a module.
+- **Session opened at the top:** the overview above, one card per module with a line per active change (its name, the stepper as six dots lined up in a column, then its tag). The ones waiting on you on top. `Open ›` opens a module.
 - **A single module:** shown directly.
 
 From the prompt:
@@ -97,14 +96,9 @@ From the prompt:
 
 The last module you picked is remembered per repository, across sessions.
 
-## Mine and other people's
+## Every change counts as yours
 
-A change is **yours** when you created it: you authored the first commit on its folder (compared with `git config user.email`), or it is not committed yet. Otherwise it belongs to whoever made that first commit.
-
-- Only your changes get a `YOU` / `AI` tag and count in the totals.
-- Someone else's show their author in a grey tag; their current step and "Waiting on …" stay grey.
-- The overview lists **MINE**, then **OTHERS** (greyed), then modules with no active change.
-- Outside git, or without a git identity, every change counts as yours.
+Spec Manager does not run `git`, and so does not tell who made a change: every change of the repository gets a `YOU` / `AI` tag and counts in the totals, yours or a teammate's. OpenSpec records no author, and the pane reads nothing of the history.
 
 ## Colours
 
@@ -113,9 +107,9 @@ Each colour means one thing everywhere in the pane, on light and dark themes ali
 | Colour | Means | Where |
 | --- | --- | --- |
 | Terracotta `#d97757` (Claude's) | the AI | `AI` tag, `▶ AI next`, its task ids and `◦` marks, the current step while the AI holds it |
-| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, open questions on your own plans, the current step while you hold it |
+| Blue `#378ADD` | you | `YOU` tag, `● Waiting on you`, open questions, the current step while you hold it |
 | Meadow green `#5fa83a` | the spec: progress against it | filled bars; a card's frame under the pointer; *spec* in the logo (in live-review, a drift from the spec) |
-| Grey `#8f8d86` | done, or not yours | done steps, frames, other people's changes |
+| Grey `#8f8d86` | done | done steps, frames |
 | Outlined pale grey | to come | upcoming steps |
 | See-through grey `#88878010` | a block | behind frames and module cards, on the desktop |
 
@@ -126,7 +120,6 @@ Only the current step is coloured, and a slow light band sweeps across it (off w
 ## Requirements
 
 - Claude Code 2.1.309 or later: the hooks module is split in several files, which older versions do not follow. On an older version, `claude plugin list` shows the plugin as `failed to load` (before 2.1.293, `Hook load failed: … "hooks" … expected record`; up to 2.1.308, `$ is followed only into a function declared in this same file`): run `claude update`.
-- `git`, to tell your changes from other people's (optional).
 - The `openspec` CLI on the `PATH` of the process running Claude Code (the pane runs `openspec list` and `openspec status --json`).
   Installed with a Node version manager (mise, nvm…)? It sets the `PATH` in your interactive shell only, which the desktop app does not load: the pane then says `openspec` was not found. A small wrapper in `~/.local/bin/openspec` (a folder Claude Code's own install puts on the `PATH`) fixes that.
 
@@ -171,8 +164,7 @@ claude plugin marketplace remove spec-manager
 
 - **Terminal layout:** the pane docks to the right of the conversation in the fullscreen renderer (from 110 columns wide); in the classic one it sits above the prompt, with less room. Switch with `/tui fullscreen`.
 - **Desktop clicks:** while the prompt has the focus, the first click on the pane only gives it the focus; the next one presses.
-- **Shared repositories:** the pane reads your working copy, so other people's changes appear once merged and pulled. "Last activity" comes from file modification times, which a `git pull` resets.
-- **Ownership** is decided by the first commit on a change's folder: someone who later takes over a change does not become its owner.
+- **Shared repositories:** the pane reads your working copy, so other people's changes appear once merged and pulled, and count as yours: it does not tell who made a change. "Last activity" comes from file modification times, which a `git pull` resets.
 
 ## What it runs, reads and sends
 
@@ -186,14 +178,16 @@ Spec Manager makes **no network request** and sends **nothing** anywhere: no tel
 | `openspec status --all --json` | which planning documents each change has |
 | `openspec list --specs --sort name --json` | the main specs, for the SPECS block |
 | `openspec list --archived --json` | the archived changes, for the ARCHIVED block |
-| `git config user.email` | your git identity, to tell your changes from other people's |
-| `git log --reverse --format=%ae%x09%an -- <change folder>` | who made the first commit on a change folder, i.e. its owner |
+
+Each `openspec` command runs with `OPENSPEC_TELEMETRY=0` and `DO_NOT_TRACK=1`, which turn off OpenSpec's telemetry and its check for a newer version, so nothing goes out through it either. Each is stopped if it still runs after 15 seconds. It runs nothing else: no `git`, no shell.
+
+> **Check it on your machine.** These variables are added to the environment Claude Code gives the command, and normally that is enough. But what actually runs depends on each computer: a wrapper script or a version manager between Claude Code and OpenSpec (an `openspec` in `~/.local/bin`, `mise exec`, an `[env]` in a mise config…) can set the environment again, and a later OpenSpec could read other settings. It is up to each user to check theirs; turning telemetry off in OpenSpec's own config as well (`openspec config set telemetry.enabled false`) covers the commands you run yourself too.
 
 What `openspec` itself does when it runs is up to the OpenSpec CLI.
 
-**What it reads:** the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md), the folder names and modification times, and, through `git log`, the name and email of the author of each change folder's first commit, to show them in its pane. The plugin itself does not store or send them, nor write them into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
+**What it reads**, only once `/spec-manager` has been run, and never through a symbolic link: the files under each `openspec/` folder (`tasks.md`, `proposal.md`, `design.md`, the change's specs: their headings and task lines, the first sentence of the proposal's Why, and the open questions listed in design.md), and the folder names and modification times. No name or email: it runs no `git` and reads nothing of the history. The plugin itself does not store or send what it reads, nor write it into the conversation; how Claude Code handles what it displays is covered by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
 
-**What it watches in the session:** nothing from the conversation. Two checks keep it so on every push: `.github/privacy-check.py` fails if the plugin hooks or calls anything beyond its list (no prompts, answers, tool calls, model or network), and `hooks/privacy.test.tsx` runs a whole session and fails if the plugin reads a file other than an OpenSpec document or runs anything but read-only `openspec` and `git`. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. Of the session it asks only its folder, to find the repository, and its id, to keep each session's state apart. A `session.end` hook hands the pane's state on across a `/clear` or a resume, and drops it when the session exits. A `session.start` hook opens the pane where there is an OpenSpec module, and the `/spec-manager` command opens it anywhere or picks a module.
+**What it watches in the session:** nothing from the conversation. Three checks keep it so on every push: `.github/privacy-check.py` fails if the plugin hooks or calls anything beyond its list (no prompts, answers, tool calls, model or network); `.github/commands-check.py` fails if the code runs a command not written out in full in the source or not in the table above, an `openspec` without its telemetry off, or a command without a timeout; and `hooks/privacy.test.tsx` runs a whole session and fails if the plugin reads a file other than an OpenSpec document or runs anything but read-only `openspec`. It reads neither your messages, nor Claude's answers, nor the tool calls Claude makes. Of the session it asks only its folder, to find the repository, and its id, to keep each session's state apart. A `session.end` hook hands the pane's state on across a `/clear` or a resume, and drops it when the session exits. A `session.start` hook only registers the `/spec-manager` command: nothing in the repository is listed, read or run until that command opens the pane, which it does anywhere, and picks a module.
 
 **What it keeps:** the last module you picked in each repository, in Claude Code's plugin storage on your machine.
 
@@ -201,10 +195,10 @@ The same, as a privacy policy: [Privacy](PRIVACY.md).
 
 ## How it works
 
-- Finds the modules once a minute; while it has found none, it looks every 10 seconds only where `openspec init` is run (the session's folder and the repository top). Every 10 seconds it fingerprints each module's `openspec/` folder (names and modification times, down to a change's `specs/<capability>/spec.md`; the archive by its folder alone) and runs `openspec` only in a module whose files changed, or that failed; at most 4 modules, and 4 changes in each, at a time. Who made a change is asked of `git` once. A module whose `openspec` fails shows the error on its own card and view; the others still read. The footer says when it last looked and counts down to the next look, while the pane is shown.
+- Finds the modules every 5 minutes; while it has found none, it looks every 30 seconds only where `openspec init` is run (the session's folder and the repository top). Every 30 seconds it fingerprints each module's `openspec/` folder (names and modification times, down to a change's `specs/<capability>/spec.md`; the archive by its folder alone) and runs `openspec` only in a module whose files changed, or that failed; at most 4 modules, and 4 changes in each, at a time. A module whose `openspec` fails shows the error on its own card and view; the others still read. The footer says when it last looked and counts down to the next look, while the pane is shown.
+- Stays inside the repository: it follows no symbolic link, neither when looking for modules nor when fingerprinting or reading their files. A module whose `openspec/` or `openspec/changes/` is a symbolic link is neither run nor read, and a change folder that is one is shown from `openspec list` alone. The only files it reads are a change's `proposal.md`, `design.md`, `tasks.md` and `specs/<capability>/spec.md`, found as plain files in the change's own folder: the paths `openspec status` answers are never read.
 - The selected module is read in full (`openspec list`, `status`, `list --specs`, `list --archived`); the others light (`list`, `status`), enough for their cards.
 - Reads `tasks.md`, `proposal.md`, `design.md` and the change's specs by their structure: headings (`## 1. Section`, `### D1.`, `### Requirement:`, `#### Scenario:`), task lines (`- [ ]`), the first sentence under `## Why`, and the bullets under `## Open Questions`.
-- Ownership: `git log --reverse --format=%ae%x09%an -- <change folder>`, first line, against `git config user.email`.
 - Bars, steppers and dots are SVG on the desktop (exact pixel widths, a light band animated on the current step); the terminal gets a text fallback.
 
 ## Development
@@ -218,9 +212,9 @@ claude plugin test .
 
 A GitHub workflow (`.github/workflows/check.yml`) runs both on every push and pull request, fails when the plugin code changes without a higher `version` in `plugin.json` (`claude plugin update` would skip such a release), tags each released version (`v0.1.0`, …) and publishes a GitHub release for it, titled and described by the release commit.
 
-The mod is five files under `hooks/`: `register.tsx`, the hooks (session start and end, `/spec-manager`, the pane); `model.ts`, what the OpenSpec files say (parsing, phase and steps, module names), with no `$`; `load.ts`, reading the repository (modules, `openspec` and `git`, sessions, the refresh); `svg.ts`, the palette and the SVG drawings; `pane.tsx`, the pane itself. `types/index.d.ts` declares the state it keeps. Two rules of the validator shape the split: a function given `$` in another file is a `function` declaration, so the scan follows it there (and the privacy check sees its calls); a file that reads or writes state declares the atom in its own consts.
+The mod is five files under `hooks/`: `register.tsx`, the hooks (session start and end, `/spec-manager`, the pane); `model.ts`, what the OpenSpec files say (parsing, phase and steps, module names), with no `$`; `load.ts`, reading the repository (modules, `openspec`, sessions, the refresh); `svg.ts`, the palette and the SVG drawings; `pane.tsx`, the pane itself. `types/index.d.ts` declares the state it keeps. Two rules of the validator shape the split: a function given `$` in another file is a `function` declaration, so the scan follows it there (and the privacy check sees its calls); a file that reads or writes state declares the atom in its own consts.
 
-`hooks/model.test.ts` covers the parsing and the rules (who does the next step, ownership, module lookup), `svg.test.ts` and `pane.test.ts` the drawings' small parts; the `*.test.tsx` files draw the pane on the terminal and the desktop against fake repositories and click through it.
+`hooks/model.test.ts` covers the parsing and the rules (who does the next step, module lookup, what may be read), `svg.test.ts` and `pane.test.ts` the drawings' small parts; the `*.test.tsx` files draw the pane on the terminal and the desktop against fake repositories and click through it.
 
 ## Security
 

@@ -4,16 +4,23 @@ import { expect, mock, test } from 'claude-code/testing'
 const MODULE = '/repo/packages/paiement'
 const CHANGE = `${MODULE}/openspec/changes/add-refunds`
 
-// `author`: the change's first commit, as git log gives it; none, the reader's own
 // `design`: the change's design.md, none when empty
-const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; totalTasks: number }, specs: string[], author = '', design = '') => {
+const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; totalTasks: number }, specs: string[], design = '') => {
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
   on('fs.exists', (_: unknown, e: { path: string }) => ({ value: ['/repo/.git', `${MODULE}/openspec`].includes(e.path) }))
   on('fs.list', (_: unknown, e: { path: string }) => {
     const names = e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : []
-    return { value: names.map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })) }
+    // The change's own folder: its documents are read only once found there
+    const files = e.path === CHANGE ? ['tasks.md', ...(design ? ['design.md'] : [])] : specs.some(name => e.path === `${CHANGE}/specs/${name}`) ? ['spec.md'] : []
+    const dirs = e.path === CHANGE && specs.length > 0 ? ['specs'] : e.path === `${CHANGE}/specs` ? specs : names
+    return {
+      value: [
+        ...dirs.map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false })),
+        ...files.map(name => ({ name, kind: 'file', size: 0, mtimeMs: 0, isLink: false })),
+      ],
+    }
   })
   on('fs.read', (_: unknown, e: { path: string }) =>
     e.path === `${CHANGE}/tasks.md` ? { value: tasks } : e.path === `${CHANGE}/design.md` && design ? { value: design } : { deny: 'ENOENT' },
@@ -21,7 +28,6 @@ const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; tota
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : author, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs' || flag === '--archived') return out({ specs: [], changes: [] })
     if (verb === 'status') {
       const paths = Object.fromEntries(['proposal', 'design', 'tasks'].map(n => [n, { existingOutputPaths: [`${CHANGE}/${n}.md`] }]))
@@ -92,46 +98,25 @@ test("the reader's plan to review waits on the reader, with what to type", async
   })
 })
 
-test("someone else's plan to review says whom it waits on, not what to type", async ($, on) => {
-  fakeRepo(on, '## 1. Data\n\n- [ ] 1.1 Table\n', { completedTasks: 0, totalTasks: 1 }, ['refunds'], 'paul@example.org\tPaul\n')
-  await withPane($, async ui => {
-    expect(await ui.find({ type: 'Text', text: /Waiting on Paul/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /\/opsx:apply|first task is checked/ })).toBe(undefined)
-  })
-})
-
-test("someone else's change ready to archive: no /opsx:archive for the reader", async ($, on) => {
-  fakeRepo(on, '## 1. Data\n\n- [x] 1.1 Table\n', { completedTasks: 1, totalTasks: 1 }, ['refunds'], 'paul@example.org\tPaul\n')
-  await withPane($, async ui => {
-    expect(await ui.find({ type: 'Text', text: /Waiting on Paul/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /\/opsx:archive/ })).toBe(undefined)
-  })
-})
-
 // A plan under review with one open question in its design
 const QUESTION = '## Open Questions\n\n- Keep the order open?\n'
 const REVIEW = ['## 1. Data\n\n- [ ] 1.1 Table\n', { completedTasks: 0, totalTasks: 1 }, ['refunds']] as const
 
-for (const [whose, author, color] of [
-  ['your own plan', '', '#378ADD'],
-  ["someone else's plan", 'ana@example.org\tAna\n', '#8f8d86'],
-] as const) {
-  test(`open questions on ${whose}: in ${color === '#378ADD' ? 'your blue' : 'grey'}`, async ($, on) => {
-    fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], author, QUESTION)
-    await withPane($, async ui => {
-      const colorOf = async (text: RegExp) => ((await ui.find({ type: 'Text', text })) as any)?.props?.color
-      expect(await colorOf(/^⚠ 1 open question to settle$/)).toBe(color)
-      expect(await colorOf(/^\? $/)).toBe(color)
-    })
+test('open questions on a plan: in your blue', async ($, on) => {
+  fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], QUESTION)
+  await withPane($, async ui => {
+    const colorOf = async (text: RegExp) => ((await ui.find({ type: 'Text', text })) as any)?.props?.color
+    expect(await colorOf(/^⚠ 1 open question to settle$/)).toBe('#378ADD')
+    expect(await colorOf(/^\? $/)).toBe('#378ADD')
   })
-}
+})
 
 // Each line of the plan opens the document it was read from by a ↗ beside it (a document
 // with nothing in it gives none), on the desktop; the terminal, which opened nothing and
 // wrote the whole URL out, shows the labels alone
 for (const surface of ['terminal', 'desktop'] as const) {
   test(`on the ${surface}, the plan's labels ${surface === 'desktop' ? 'open their documents' : 'stay plain'}`, async ($, on) => {
-    fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n')
+    fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '## Decisions\n\n### D1. Provider API\n')
     await withPane($, async ui => {
       // The markdown a label is drawn with: its words, then the ↗ alone a link to its file
       const markdownOf = async (words: string) => ((await ui.find({ type: 'Markdown', text: new RegExp(`^(\\*\\*)?${words}\\b`) })) as any)?.props
@@ -158,7 +143,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
 test('a document with nothing in it gives its label no ↗', async ($, on) => {
   // tasks.md read, but empty: the Tasks line stays, without a link
-  fakeRepo(on, '', { completedTasks: 0, totalTasks: 0 }, ['refunds'], '', '## Decisions\n\n### D1. Provider API\n')
+  fakeRepo(on, '', { completedTasks: 0, totalTasks: 0 }, ['refunds'], '## Decisions\n\n### D1. Provider API\n')
   await withPane($, async ui => {
     expect(await ui.find({ type: 'Text', text: /^Tasks$/ })).toBeDefined()
     expect(await ui.find({ type: 'Markdown', text: /tasks\.md/ })).toBe(undefined)
@@ -167,7 +152,7 @@ test('a document with nothing in it gives its label no ↗', async ($, on) => {
 })
 
 test('a design with no open question raises no warning', async ($, on) => {
-  fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '', '## Decisions\n\n### D1. Provider API\n\n## Open Questions\n\nNone.\n')
+  fakeRepo(on, REVIEW[0], REVIEW[1], [...REVIEW[2]], '## Decisions\n\n### D1. Provider API\n\n## Open Questions\n\nNone.\n')
   await withPane($, async ui => {
     expect(await ui.find({ type: 'Text', text: /open question/ })).toBe(undefined)
     expect(await ui.find({ type: 'Text', text: /^\? $/ })).toBe(undefined)
@@ -176,7 +161,7 @@ test('a design with no open question raises no warning', async ($, on) => {
 
 test("a spec's name too long for its line is cut, its ↗ kept", async ($, on) => {
   const long = 'refunds-with-a-name-far-too-long-for-the-pane'
-  fakeRepo(on, REVIEW[0], REVIEW[1], [long], '', '## Decisions\n\n### D1. Provider API\n')
+  fakeRepo(on, REVIEW[0], REVIEW[1], [long], '## Decisions\n\n### D1. Provider API\n')
   await withPane($, async ui => {
     const text: string = ((await ui.find({ type: 'Markdown', text: /^refunds-/ })) as any)?.props?.text ?? ''
     expect(text).toMatch(/^refunds-with-a-[^ ]*… \[↗\]\(file:\/\/.+\/specs\/refunds-with-a-name-far-too-long-for-the-pane\/spec\.md\)$/)

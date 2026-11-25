@@ -46,10 +46,6 @@ export type Change = {
   aiNext?: Task
   /** ISO date of the last change to the change's files */
   lastModified?: string
-  /** Created by the reader (first commit on its folder, or not committed yet) */
-  isMine: boolean
-  /** Who created it, when someone else did */
-  owner?: string
 }
 
 export type Spec = { id: string; requirements: number }
@@ -75,8 +71,6 @@ export type ChangeLine = {
   step: number
   steps: number
   turn: Turn
-  isMine: boolean
-  owner?: string
 }
 
 /** A folder holding an openspec/ directory, summed up for the overview */
@@ -85,13 +79,10 @@ export type Module = {
   name: string
   path: string
   changes: number
-  /** The reader's own changes, and of those whose turn it is */
-  mine: number
+  /** Its changes whose next step is yours, and the AI's */
   you: number
   ai: number
-  /** Who created the other changes */
-  others: string[]
-  /** Its active changes, the reader's first */
+  /** Its active changes */
   items: ChangeLine[]
   /** Most recent lastModified among its active changes */
   lastModified?: string

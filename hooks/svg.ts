@@ -60,8 +60,8 @@ export const numberSvg = (n: number, fill: string) =>
   `<circle cx="10" cy="10" r="10" fill="${fill}"/>` +
   `<text x="10" y="14" text-anchor="middle" font-family="${BRAND_SANS}" font-size="12" font-weight="700" fill="#ffffff">${n}</text></svg>`
 
-// The actor colours are the reader's: someone else's change stays grey
-export const actorColor = (change: Change) => (change.isMine ? turnColor(change.turn) : MUTED)
+// The current step in the colour of whoever takes it
+export const actorColor = (change: Change) => turnColor(change.turn)
 
 // Drawn in real pixels: the desktop pane's font gives text cells no fixed width
 export const barSvg = ({ done, total }: Progress) => {

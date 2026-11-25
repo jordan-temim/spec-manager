@@ -49,7 +49,7 @@ const fakeRepo = (on: any) => {
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb] = e.argv
-    const stdout = cmd === 'git' ? (verb === 'config' ? 'me@example.org\n' : '') : JSON.stringify({ changes: [], specs: [] })
+    const stdout = JSON.stringify({ changes: [], specs: [] })
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
   on('command.register', () => ({ value: { command: 'spec-manager' } }))
@@ -60,9 +60,11 @@ const fakeRepo = (on: any) => {
 
 test('/spec-manager <module> during the first look for modules waits for it', async ($, on) => {
   const { release, isHeld, walks } = fakeRepo(on)
-  // Not awaited before the release either: a session start that waited for its first
-  // look would make the test fail on isHeld below, not hang
-  const started = $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  // The first /spec-manager starts the first look. Not awaited before the release either:
+  // a command that waited for its first look would make the test fail on isHeld below,
+  // not hang
+  const started = $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   let answer: Promise<{ text?: string }> = Promise.resolve({})
   try {
     // The session's first look is under way, held in the middle of its walk
@@ -116,7 +118,6 @@ const twoModules = ($: any, on: any, options: TwoModules = {}) => {
   on('process.run', async (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
     const [cmd, verb, flag] = e.argv
     const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs' || flag === '--archived' || verb === 'status') return out({ changes: [], specs: [] })
     const dir = e.init?.cwd ?? ''
     const name = changeIn(dir)
@@ -230,7 +231,13 @@ test('a slow read ending after a newer one leaves the newer data shown', async (
 
 // /spec-manager without an argument starts over, as at session start, even while a search
 // for modules is under way
-test('a reset asked during a search picks again what to show', async ($, on) => {
+test('a reset asked during a search picks again what to show',
+  // Five minutes of the clock's one-second ticks take real time: more than the default
+  // 5 seconds on a busy machine
+  { timeoutMs: 20000 },
+  async ($, on) => {
+  // The pane not shown: the one-second ticks redraw nothing, so five minutes of them stay quick
+  on('ui.panes', () => ({ value: [] }))
   // The session sits in paiement: what it shows at start, and again after a reset
   let isArmed = false
   const { promise: isHeld, resolve: held } = deferred()
@@ -250,13 +257,17 @@ test('a reset asked during a search picks again what to show', async ($, on) => 
   await clock.settle()
   await run('catalogue')
   await clock.settle()
-  // The minute's search, held mid-walk; the reset comes meanwhile
+  // Up to the search's due time first, awaited: its 300 one-second ticks would otherwise
+  // run within the real-time wait of the reach below
+  await clock.advance(DISCOVER_EVERY_MS)
+  await clock.settle()
+  // The next poll's search, held mid-walk; the reset comes meanwhile
   isArmed = true
   // Neither the clock nor the reset awaited while the search is held: were either to wait
   // for it, the reaches fail the test instead of hanging it
-  const advanced = clock.advance(DISCOVER_EVERY_MS + POLL_MS)
+  const advanced = clock.advance(POLL_MS)
   try {
-    await reach(isHeld, "the minute's search held")
+    await reach(isHeld, 'the search held')
     await reach(run('').then(() => undefined), 'the reset answered')
   } finally {
     release()

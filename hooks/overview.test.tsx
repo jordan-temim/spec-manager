@@ -34,13 +34,6 @@ const OPENSPEC: Record<string, Record<string, unknown>> = {
   },
 }
 
-// git: the reader is me@example.org; Paul created the catalogue change
-const git = (argv: readonly string[]) => {
-  if (argv[1] === 'config') return 'me@example.org\n'
-  const dir = argv[argv.length - 1] ?? ''
-  return dir.includes('catalogue') ? 'paul@example.org\tPaul\n' : 'me@example.org\tMe\n'
-}
-
 const fakeRepo = (on: any) => {
   mock.clock(on)
   mock.store(on)
@@ -52,7 +45,6 @@ const fakeRepo = (on: any) => {
   }))
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
-    if (e.argv[0] === 'git') return { value: { exitCode: 0, stdout: git(e.argv), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     const [, verb, flag] = e.argv
     const answers = OPENSPEC[e.init?.cwd ?? ''] ?? {}
     const body = flag === '--specs' ? { specs: [] } : flag === '--archived' ? { changes: [] } : answers[verb ?? '']
@@ -75,9 +67,9 @@ test('at the repo top, the overview lists both modules and a press opens one', a
     expect(await ui.find({ type: 'Text', text: /MODULES/ })).toBeDefined()
     expect(await ui.find({ key: 'open:/repo/packages/paiement' })).toBeDefined()
     expect(await ui.find({ key: 'open:/repo/packages/catalogue' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /MINE/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /OTHERS/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /Paul/ })).toBeDefined()
+    // Every change counts as the reader's: one list of modules in progress, no authors
+    expect(await ui.find({ type: 'Text', text: /IN PROGRESS/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /MINE|OTHERS/ })).toBe(undefined)
     await ui.press({ key: 'open:/repo/packages/paiement' })
     expect(await ui.find({ type: 'Text', text: /1 other module/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /pay-v2/ })).toBeDefined()
@@ -97,9 +89,7 @@ test('/spec-manager <module> opens that module', async ($, on) => {
   const answer = await runCommand($, 'catalogue')
   expect(answer.text).toBe('Showing packages/catalogue.')
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', ...PANE, props })
-  // Paul's change: his name in place of YOU / AI, and nothing waiting on the reader
-  expect(await ui.find({ type: 'Text', text: /Paul/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Waiting on you/ })).toBe(undefined)
+  expect(await ui.find({ type: 'Text', text: /variants/ })).toBeDefined()
   await ui.unmount()
 })
 

@@ -44,6 +44,8 @@ test('the clock moves only while the pane is shown', async ($, on) => {
   const updated = async () => (await footer()).match(/updated at [\d:]+/)?.[0]
 
   await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  // Nothing is read before /spec-manager: the command starts the pane and its polling
+  await $.command.run({ command: 'spec-manager', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
   const atStart = await countdown()
   expect(atStart).toBe(left(POLL_S))

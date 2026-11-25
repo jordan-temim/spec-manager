@@ -26,7 +26,6 @@ test('a module opened from the overview shows its specs and archives as loading 
   on('process.run', async (_: unknown, e: { argv: readonly string[] }) => {
     const [cmd, verb, flag] = e.argv
     const out = (body: unknown) => ({ value: { exitCode: 0, stdout: JSON.stringify(body), stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
-    if (cmd === 'git') return { value: { exitCode: 0, stdout: verb === 'config' ? 'me@example.org\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     if (flag === '--specs') {
       await released
       return out({ specs: [{ id: 'refunds', requirementCount: 3 }] })

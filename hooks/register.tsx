@@ -2,15 +2,44 @@
 // alone. The hooks: the session's start and end, the /spec-manager command, the pane
 
 import { atom, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import { ALL, moduleName, partialMatches, resolveModule } from './model'
 import { PANE, POLL_MS, TITLE, handedOver, lastError, moveClock, openspecAppeared, refresh, select, sessionOf, sessions } from './load'
+import type { Session } from './load'
 import { renderPane } from './pane'
 import type { HelpTab } from '../types'
 
 // The same state as pane.tsx's: the state scan reads the atoms a file writes in its own consts
 const help = atom({ plugin: 'spec-manager', key: 'help' } as const, '' as '' | HelpTab)
+
+// The polling, armed once per session: a session asked again replaces its timers instead
+// of adding to them. `first` false when the caller runs the first refresh itself
+async function arm($: EngineInterface, s: Session, first = true) {
+  if (first) void refresh($, s, true).catch(() => undefined)
+  s.nextPollAt = (await $.clock.now()) + POLL_MS
+  for (const timer of s.timers) timer.cancel()
+  s.timers = [
+    // The pane reads files only: it looks again every 30 seconds. While it has no module,
+    // it looks only where `openspec init` is run, so one shows up without walking a large
+    // repository's tree each time (the whole tree is walked again every 5 minutes)
+    $.clock.every(POLL_MS, () => {
+      void (async () => refresh($, s, false, s.found?.paths.length === 0 && (await openspecAppeared($, s.found.base))))().catch(
+        () => undefined,
+      )
+      void $.clock
+        .now()
+        .then(now => {
+          s.nextPollAt = now + POLL_MS
+        })
+        .catch(() => undefined)
+    }),
+    // Every second, move the clock the countdown and the "last activity" times read
+    $.clock.every(1000, () => {
+      void moveClock($).catch(() => undefined)
+    }),
+  ]
+}
 
 export const register: Register = on => {
   // A session that ends hands its state to the one that goes on in this process
@@ -26,35 +55,14 @@ export const register: Register = on => {
 
   // Whatever fails here, next(e) is called: the engine would skip a failing hook anyway,
   // this keeps it from being one
+  // A session start only offers the command: nothing is listed, read or run in the
+  // repository until /spec-manager asks for it. A start that comes again in this process
+  // (an enable, a worker respawn) after /spec-manager was run picks the polling up again
   on('session.start', async ($, e, next) => {
     try {
       await $.command.register({ name: 'spec-manager', description: 'Show the Spec Manager pane (OpenSpec changes)' })
       const s = await sessionOf($)
-      void refresh($, s, true).catch(() => undefined)
-      s.nextPollAt = (await $.clock.now()) + POLL_MS
-      // Armed once: a start that comes again in this process (an enable, a worker respawn)
-      // replaces the timers instead of adding to them
-      for (const timer of s.timers) timer.cancel()
-      s.timers = [
-        // The pane reads files only: it looks again every 10 seconds. While it has no module,
-        // it looks only where `openspec init` is run, so one shows up quickly without walking
-        // a large repository's tree each time (the whole tree is walked again each minute)
-        $.clock.every(POLL_MS, () => {
-          void (async () => refresh($, s, false, s.found?.paths.length === 0 && (await openspecAppeared($, s.found.base))))().catch(
-            () => undefined,
-          )
-          void $.clock
-            .now()
-            .then(now => {
-              s.nextPollAt = now + POLL_MS
-            })
-            .catch(() => undefined)
-        }),
-        // Every second, move the clock the countdown and the "last activity" times read
-        $.clock.every(1000, () => {
-          void moveClock($).catch(() => undefined)
-        }),
-      ]
+      if (s.hasOpened) await arm($, s)
     } catch {
       // No pane for this session, nothing else held up
     }
@@ -68,6 +76,8 @@ export const register: Register = on => {
     const s = await sessionOf($)
     s.hasOpened = true
     await $.ui.open({ id: PANE, title: TITLE })
+    // The first /spec-manager of the session starts the polling; a later one finds it armed
+    if (s.timers.length === 0) await arm($, s, false)
     // The pane's own page, whatever was asked: a help page left open would hide the module
     // the command opens, or the overview it brings back
     await update($, help, () => '')
