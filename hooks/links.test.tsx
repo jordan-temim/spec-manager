@@ -37,6 +37,8 @@ type Options = {
   changes?: unknown[]
   /** `openspec status`'s artifactPaths for add-refunds */
   artifactPaths?: Record<string, { existingOutputPaths: string[] }>
+  /** The session's folder; the repository top by default */
+  cwd?: string
 }
 
 const fakeRepo = (on: any, tree: Tree, options: Options = {}) => {
@@ -45,7 +47,7 @@ const fakeRepo = (on: any, tree: Tree, options: Options = {}) => {
   const runs: Run[] = []
   const clock = mock.clock(on)
   mock.store(on)
-  on('session.cwd', () => ({ value: REPO }))
+  on('session.cwd', () => ({ value: options.cwd ?? REPO }))
   on('fs.exists', (_: unknown, e: { path: string }) => {
     const parent = e.path.slice(0, e.path.lastIndexOf('/'))
     return { value: (tree[parent] ?? []).some(([name]) => name === e.path.slice(parent.length + 1)) }
@@ -68,6 +70,9 @@ const fakeRepo = (on: any, tree: Tree, options: Options = {}) => {
       const artifactPaths = options.artifactPaths ?? {}
       return out({ changes: [{ changeName: 'add-refunds', artifactPaths }] })
     }
+    // add-refunds is pay's change alone: any other module lists none, so a view tells
+    // which module it shows
+    if (e.init?.cwd !== MODULE) return out({ changes: [] })
     return out({ changes: options.changes ?? [{ name: 'add-refunds', completedTasks: 1, totalTasks: 2 }] })
   })
   on('command.register', () => ({ value: { command: 'spec-manager' } }))
@@ -76,8 +81,9 @@ const fakeRepo = (on: any, tree: Tree, options: Options = {}) => {
   return { reads, lists, runs, clock }
 }
 
-const open = async ($: any, clock: any, args = '') => {
-  await $.session.start({ cwd: REPO, surface: 'desktop', isInteractive: true })
+// The session starts in `cwd` (the repository top by default), as session.cwd answers
+const open = async ($: any, clock: any, args = '', cwd = REPO) => {
+  await $.session.start({ cwd, surface: 'desktop', isInteractive: true })
   const answer = await $.command.run({ command: 'spec-manager', args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   await clock.settle()
   return answer
@@ -86,7 +92,8 @@ const open = async ($: any, clock: any, args = '') => {
 const pane = async ($: any) => {
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', component: 'Pane', requestId: 'spec-manager', props: { title: 'Spec Manager', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} } })
   try {
-    return (await ui.find({ type: 'Box' }))?.text ?? ''
+    // The whole pane, or its one line when it has nothing but a message to show
+    return (await ui.find({ type: 'Box' }))?.text ?? (await ui.find({ type: 'Text' }))?.text ?? ''
   } finally {
     await ui.unmount()
   }
@@ -114,8 +121,10 @@ test('a document readable but not found in the change folder is not read', async
   expect(reads).not.toContain(`${CHANGE}/design.md`)
   expect(reads).not.toContain(`${CHANGE}/specs/refunds/spec.md`)
   expect(reads).toContain(`${CHANGE}/tasks.md`)
-  // Nothing of design.md drawn either: no Decisions line
-  expect(await pane($)).not.toContain('D1')
+  // The change drawn, nothing of design.md in it: no Decisions line
+  const drawn = await pane($)
+  expect(drawn).toContain('add-refunds')
+  expect(drawn).not.toContain('D1')
 })
 
 test('a document that is a symbolic link is never read, whatever it points to', async ($, on) => {
@@ -178,6 +187,67 @@ test('an openspec/ that is a symbolic link makes no module: nothing run there', 
   expect(runs.filter(run => run.argv[0] === 'openspec')).toEqual([])
 })
 
+test('a session opened in a module whose openspec/ is a symbolic link lists nothing behind it', async ($, on) => {
+  const tree = plainTree()
+  // /repo/pay/openspec points outside the repository (to a home folder, say); the session
+  // sits in /repo/pay, where it is found by its name before any walk
+  tree[MODULE] = [['openspec', 'dir', true]]
+  tree[`${MODULE}/openspec`] = [['changes', 'dir'], ['Documents', 'dir']]
+  tree[`${MODULE}/openspec/Documents`] = [['secret', 'dir']]
+  const { reads, lists, runs, clock } = fakeRepo(on, tree, { cwd: MODULE })
+  await open($, clock, '', MODULE)
+  // A few polls: each would fingerprint the module's openspec/ again
+  await clock.advance(3 * 30000)
+  await clock.settle()
+  expect(lists.filter(path => path === `${MODULE}/openspec` || path.startsWith(`${MODULE}/openspec/`))).toEqual([])
+  expect(reads).toEqual([])
+  expect(runs.filter(run => run.argv[0] === 'openspec')).toEqual([])
+  // It did look: the session's folder was listed, and found to hold no module of its own
+  expect(lists).toContain(MODULE)
+  expect(await pane($)).toContain('No openspec/ folder')
+})
+
+test('a linked openspec/ on the way up does not hide the module the session sits in', async ($, on) => {
+  const tree = plainTree()
+  // The session sits in /repo/pay/web, whose openspec/ is a link; /repo/pay above it is a
+  // module of its own, and so is /repo/shop beside it
+  tree[REPO] = [['.git', 'dir'], ['pay', 'dir'], ['shop', 'dir']]
+  tree[MODULE] = [['openspec', 'dir'], ['web', 'dir']]
+  tree[`${MODULE}/web`] = [['openspec', 'dir', true]]
+  tree['/repo/shop'] = [['openspec', 'dir']]
+  const { lists, clock } = fakeRepo(on, tree, { cwd: `${MODULE}/web` })
+  await open($, clock, '', `${MODULE}/web`)
+  // Two modules, the session in pay: pay's own view, its way back to the overview and its
+  // change; not the overview (no MODULES heading, no shop listed with no active change)
+  const drawn = await pane($)
+  expect(drawn).toContain('‹ All modules')
+  expect(drawn).toContain('1 other module')
+  expect(drawn).toContain('add-refunds')
+  expect(drawn).not.toContain('MODULES')
+  expect(drawn).not.toContain('NO ACTIVE CHANGE')
+  expect(drawn).not.toContain('shop')
+  expect(lists.filter(path => path.startsWith(`${MODULE}/web/openspec`))).toEqual([])
+})
+
+test('an openspec/ that is a symbolic link does not have the tree walked again at every poll', async ($, on) => {
+  const tree = plainTree()
+  // The repository top's openspec/ is a link, and the repository has no module of its own
+  tree[REPO] = [['.git', 'dir'], ['src', 'dir'], ['openspec', 'dir', true]]
+  tree['/repo/src'] = [['app', 'dir']]
+  const { lists, runs, clock } = fakeRepo(on, tree)
+  await open($, clock)
+  const walks = () => lists.filter(path => path === '/repo/src').length
+  const first = walks()
+  // The first look did walk the tree
+  expect(first).toBeGreaterThan(0)
+  // Three polls, well before the search's own 5 minutes: none walks the tree again
+  for (let i = 0; i < 3; i++) await clock.advance(30000)
+  await clock.settle()
+  expect(walks()).toBe(first)
+  expect(runs.filter(run => run.argv[0] === 'openspec')).toEqual([])
+  expect(await pane($)).toContain('No openspec/ folder')
+})
+
 test('the search for modules does not follow a folder that is a symbolic link', async ($, on) => {
   const tree = plainTree()
   // /repo/elsewhere points outside the repository, an openspec/ behind it
@@ -226,12 +296,17 @@ test('a change name that is a path is left out: nothing read or listed in it', a
   const outside = (path: string) => !path.startsWith(`${CHANGES}/add-refunds`) && path.startsWith(`${CHANGES}/`)
   expect(reads.filter(outside)).toEqual([])
   expect(lists.filter(outside)).toEqual([])
-  // Nothing but openspec runs, only in the module, and no command names a change: none
-  // of those names reaches an argument
+  // Nothing but openspec runs, only in the module, and no command names a change: no
+  // argument is one of those names, nor an option's value set to one (--change=..)
+  const names_ = [...names.filter(n => n !== ''), 'add-refunds']
+  // Every name is looked for anywhere in an argument (`--change:add-refunds`, a path made
+  // of it), but `.`: a dot is in many a fair argument, so it counts only as a whole part,
+  // split at anything but a name's own characters
+  const isName = (arg: string) =>
+    names_.some(name => (name === '.' ? arg.split(/[^A-Za-z0-9_.-]+/).includes(name) : arg.includes(name)))
   for (const run of runs) {
     expect([run.argv[0], run.cwd]).toEqual(['openspec', MODULE])
-    for (const name of names.filter(n => n !== '')) expect(run.argv.some(arg => arg.includes(name))).toBe(false)
-    expect(run.argv.some(arg => arg.includes('add-refunds'))).toBe(false)
+    expect(run.argv.filter(isName)).toEqual([])
   }
   expect(await pane($)).toContain('add-refunds')
 })

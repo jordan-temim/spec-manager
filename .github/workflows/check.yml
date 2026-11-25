@@ -33,6 +33,7 @@ jobs:
       # Every command the code runs written out, on the list, openspec's telemetry off,
       # each with a timeout; then the check's own cases
       - run: python3 .github/commands-check.py
+      - run: python3 .github/commands-check-unit-test.py
       - run: python3 .github/commands-check-test.py
       - run: claude plugin test .
         env:

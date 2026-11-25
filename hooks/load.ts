@@ -79,6 +79,13 @@ export async function sessionOf($: EngineInterface): Promise<Session> {
 
 export const parentOf = (dir: string) => dir.slice(0, dir.lastIndexOf('/'))
 
+// A folder's openspec/, there as a folder of its own, not a symbolic link: told by the
+// folder's listing, which names the link without following it
+export async function hasOwnOpenspec($: EngineInterface, dir: string): Promise<boolean> {
+  const entries = await $.fs.list(dir).catch(() => [])
+  return entries.some(entry => entry.name === 'openspec' && entry.kind === 'dir' && !entry.isLink)
+}
+
 // The repo top (nearest .git upward), else the session's own dir
 export async function baseOf($: EngineInterface, cwd: string): Promise<string> {
   for (let dir = cwd; dir !== ''; dir = parentOf(dir)) {
@@ -96,7 +103,10 @@ export async function discover($: EngineInterface): Promise<{ base: string; insi
   const base = await baseOf($, cwd)
   let inside: string | undefined
   for (let dir = cwd; dir.length >= base.length && dir !== ''; dir = parentOf(dir)) {
-    if (await $.fs.exists(`${dir}/openspec`)) {
+    // Only an openspec/ that is the folder's own: one that is a symbolic link makes no
+    // module, here as in the walk below, and is never listed. The way up goes on past it,
+    // to the module the session sits in further up
+    if ((await $.fs.exists(`${dir}/openspec`)) && (await hasOwnOpenspec($, dir))) {
       inside = dir
       break
     }
@@ -184,6 +194,9 @@ export async function loadSelected($: EngineInterface, s: Session, path: string)
 // moves no folder's time. The archive is not opened: archived changes no longer move,
 // and one archived or taken out moves the archive folder's own time
 export async function signature($: EngineInterface, root: string): Promise<string> {
+  // An openspec/ that is a symbolic link is never walked: its listing would be the
+  // folder it points to, outside the repository
+  if (!(await hasOwnOpenspec($, root))) return 'not its own openspec/'
   const parts: string[] = []
   const walk = async (dir: string, depth: number) => {
     const entries = await $.fs.list(dir).catch(() => [])
@@ -512,11 +525,13 @@ export async function lastError($: EngineInterface) {
   return (await read($, view)).error
 }
 
-// An openspec/ in the session's folder or at the repository top, where `openspec init` is run
+// An openspec/ in the session's folder or at the repository top, where `openspec init` is run.
+// Only one of the folder's own, as discover finds it: a symbolic link answering here would
+// have the whole tree walked again at every poll, for a module that never comes
 export async function openspecAppeared($: EngineInterface, base: string) {
   const cwd = await $.session.cwd()
   for (const dir of new Set([cwd, base])) {
-    if (await $.fs.exists(`${dir}/openspec`)) return true
+    if ((await $.fs.exists(`${dir}/openspec`)) && (await hasOwnOpenspec($, dir))) return true
   }
   return false
 }

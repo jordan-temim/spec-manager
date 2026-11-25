@@ -16,6 +16,7 @@ const fakeRepo = (on: any, names: string[]) => {
   const mtime: Record<string, number> = {}
   const broken = new Set<string>()
   const runs: { cwd: string; argv: string[] }[] = []
+  const refused: string[][] = []
   const listed: string[] = []
   let inFlight = 0
   let maxInFlight = 0
@@ -36,8 +37,12 @@ const fakeRepo = (on: any, names: string[]) => {
   })
   on('fs.read', () => ({ deny: 'ENOENT' }))
   on('process.run', async (_: unknown, e: { argv: readonly string[]; init?: { cwd?: string } }) => {
-    // The pane runs openspec alone: anything else is refused, and fails the test below
-    if (e.argv[0] !== 'openspec') throw new Error(`not openspec: ${e.argv.join(' ')}`)
+    // The pane runs openspec alone: anything else is kept, then refused. The pane may
+    // take the refusal as a failed read and go on, so the tests check `refused` itself
+    if (e.argv[0] !== 'openspec') {
+      refused.push([...e.argv])
+      return { deny: `not openspec: ${e.argv.join(' ')}` }
+    }
     const cwd = e.init?.cwd ?? ''
     runs.push({ cwd, argv: [...e.argv] })
     inFlight++
@@ -71,6 +76,7 @@ const fakeRepo = (on: any, names: string[]) => {
   return {
     clock,
     runs,
+    refused,
     listed,
     openspecIn,
     walksOf,
@@ -105,6 +111,7 @@ test('a file moved in one module reads that module again, not the others', async
   expect(repo.openspecIn('catalogue')).toBeGreaterThan(before.catalogue)
   expect(repo.openspecIn('paiement')).toBe(before.paiement)
   expect(repo.openspecIn('auth')).toBe(before.auth)
+  expect(repo.refused).toEqual([])
 })
 
 test('a failing module is read again at each poll, alone', async ($, on) => {
@@ -121,6 +128,8 @@ test('a failing module is read again at each poll, alone', async ($, on) => {
     expect(repo.openspecIn('catalogue')).toBeGreaterThan(catalogue)
   }
   expect(repo.openspecIn('paiement')).toBe(paiement)
+  // Nothing but openspec was run
+  expect(repo.refused).toEqual([])
 })
 
 test('/spec-manager run again reads every module afresh, nothing having moved', async ($, on) => {
@@ -136,8 +145,8 @@ test('/spec-manager run again reads every module afresh, nothing having moved', 
   await repo.clock.settle()
   expect(repo.openspecIn('paiement')).toBeGreaterThan(before.paiement)
   expect(repo.openspecIn('catalogue')).toBeGreaterThan(before.catalogue)
-  // Every run was openspec's
-  expect(repo.runs.every(r => r.argv[0] === 'openspec')).toBe(true)
+  // Nothing but openspec was run
+  expect(repo.refused).toEqual([])
 })
 
 test('a large repository reads a few modules at a time', async ($, on) => {
@@ -150,6 +159,7 @@ test('a large repository reads a few modules at a time', async ($, on) => {
   expect(repo.openspecIn('m11')).toBeGreaterThan(0)
   expect(repo.maxModules()).toBeGreaterThan(1)
   expect(repo.maxModules()).toBeLessThanOrEqual(4)
+  expect(repo.refused).toEqual([])
 })
 
 test('a session start that comes again replaces the poll, it does not add one', async ($, on) => {
@@ -165,6 +175,8 @@ test('a session start that comes again replaces the poll, it does not add one', 
   const before = walks()
   await poll(repo.clock)
   expect(walks() - before).toBe(1)
+  // Nothing but openspec was run
+  expect(repo.refused).toEqual([])
 })
 
 test('a module taken away leaves the pane at the next search, nothing else moving', async ($, on) => {
@@ -199,6 +211,8 @@ test('a module taken away leaves the pane at the next search, nothing else movin
   const ui = await $.ui.mount({ plugin: 'spec-manager', surface: 'desktop', ...PANE, props })
   expect(await ui.find({ type: 'Text', text: /No openspec\/ folder/ })).toBeDefined()
   await ui.unmount()
+  // Nothing but openspec was run
+  expect(repo.refused).toEqual([])
 })
 
 test('a session that exits stops its poll', async ($, on) => {
@@ -216,4 +230,6 @@ test('a session that exits stops its poll', async ($, on) => {
   await poll(repo.clock)
   await poll(repo.clock)
   expect(polls()).toBe(before)
+  // Nothing but openspec was run
+  expect(repo.refused).toEqual([])
 })

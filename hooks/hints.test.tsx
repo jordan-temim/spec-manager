@@ -4,8 +4,10 @@ import { expect, mock, test } from 'claude-code/testing'
 const MODULE = '/repo/packages/paiement'
 const CHANGE = `${MODULE}/openspec/changes/add-refunds`
 
-// `design`: the change's design.md, none when empty
-const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; totalTasks: number }, specs: string[], design = '') => {
+// `design`: the change's design.md, none when empty. `isListed` false: design.md still
+// answers a read, and openspec status still names it, but the change's folder does not
+// list it, to show that only a document found in the folder is read
+const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; totalTasks: number }, specs: string[], design = '', isListed = true) => {
   mock.clock(on)
   mock.store(on)
   on('session.cwd', () => ({ value: '/repo' }))
@@ -13,7 +15,7 @@ const fakeRepo = (on: any, tasks: string, counts: { completedTasks: number; tota
   on('fs.list', (_: unknown, e: { path: string }) => {
     const names = e.path === '/repo' ? ['.git', 'packages'] : e.path === '/repo/packages' ? ['paiement'] : e.path === MODULE ? ['openspec'] : []
     // The change's own folder: its documents are read only once found there
-    const files = e.path === CHANGE ? ['tasks.md', ...(design ? ['design.md'] : [])] : specs.some(name => e.path === `${CHANGE}/specs/${name}`) ? ['spec.md'] : []
+    const files = e.path === CHANGE ? ['tasks.md', ...(design && isListed ? ['design.md'] : [])] : specs.some(name => e.path === `${CHANGE}/specs/${name}`) ? ['spec.md'] : []
     const dirs = e.path === CHANGE && specs.length > 0 ? ['specs'] : e.path === `${CHANGE}/specs` ? specs : names
     return {
       value: [
@@ -100,6 +102,20 @@ test("the reader's plan to review waits on the reader, with what to type", async
 
 // A plan under review with one open question in its design
 const QUESTION = '## Open Questions\n\n- Keep the order open?\n'
+
+test('a design.md that answers a read but is not in the change folder is not read, nor linked', async ($, on) => {
+  fakeRepo(on, '## 1. Data\n\n- [ ] 1.1 Table\n', { completedTasks: 0, totalTasks: 1 }, ['refunds'], '## Decisions\n\n### D1. Provider API\n' + QUESTION, false)
+  await withPane($, async ui => {
+    // The change is drawn, its plan up for review ...
+    expect(await ui.find({ type: 'Text', text: /add-refunds/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^● Waiting on you$/ })).toBeDefined()
+    // ... with nothing of design.md: no Decisions line, no open question, no link to it
+    expect(await ui.find({ type: 'Markdown', text: /Decisions/ })).toBe(undefined)
+    expect(await ui.find({ type: 'Text', text: /Decisions|D1 Provider API/ })).toBe(undefined)
+    expect(await ui.find({ type: 'Text', text: /open question/ })).toBe(undefined)
+    expect(await ui.find({ type: 'Markdown', text: /design\.md/ })).toBe(undefined)
+  })
+})
 const REVIEW = ['## 1. Data\n\n- [ ] 1.1 Table\n', { completedTasks: 0, totalTasks: 1 }, ['refunds']] as const
 
 test('open questions on a plan: in your blue', async ($, on) => {
